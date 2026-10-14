@@ -1,0 +1,2602 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="과외 매니저">
+<title>과외 매니저</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f3f6f7;
+  --card: #ffffff;
+  --ink: #1b2a38;
+  --mute: #667886;
+  --line: #d6dfe4;
+  --acc: #17757d;
+  --acc-soft: #dff0f1;
+  --on: #ffffff;
+  --field: #fbfcfc;
+  --warn: #d96b27;
+  --warn-bg: #fff2e8;
+  --danger: #d2544b;
+  --danger-bg: #fdeceb;
+  --blue: #2b7de9;
+  --purple-pill: #f3eef8;
+  --purple-line: #cbbce0;
+  --purple-ink: #5e546e;
+  box-sizing: border-box;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f171e;
+    --card: #17222c;
+    --ink: #e5edf2;
+    --mute: #8fa1af;
+    --line: #2a3a47;
+    --acc: #4fb8c0;
+    --acc-soft: #1d3a40;
+    --on: #06262a;
+    --field: #121c24;
+    --warn: #f59e0b;
+    --warn-bg: #3b2813;
+    --danger: #ef6b62;
+    --danger-bg: #3a1d1d;
+    --blue: #4d96ff;
+    --purple-pill: #262130;
+    --purple-line: #6b5888;
+    --purple-ink: #d5cce4;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f171e;
+  --card: #17222c;
+  --ink: #e5edf2;
+  --mute: #8fa1af;
+  --line: #2a3a47;
+  --acc: #4fb8c0;
+  --acc-soft: #1d3a40;
+  --on: #06262a;
+  --field: #121c24;
+  --warn: #f59e0b;
+  --warn-bg: #3b2813;
+  --danger: #ef6b62;
+  --danger-bg: #3a1d1d;
+  --blue: #4d96ff;
+  --purple-pill: #262130;
+  --purple-line: #6b5888;
+  --purple-ink: #d5cce4;
+}
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.55 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+button { cursor: pointer; }
+input, select, textarea {
+  width: 100%;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+/* 상단 헤더 */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.app-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+  display: inline-block;
+}
+.sync-dot.ok { background: #22c55e; }
+.sync-dot.busy { background: var(--warn); }
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.icon-btn {
+  border: 1px solid var(--line);
+  background: var(--field);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* 메인 컨테이너 */
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 14px 12px 24px;
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.section-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* 공통 버튼 및 세그먼트 */
+.btn-primary {
+  border: 0;
+  background: var(--acc);
+  color: var(--on);
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.btn-ghost {
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+}
+.btn-danger {
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+}
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--field);
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--mute);
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on {
+  background: var(--acc);
+  color: var(--on);
+  font-weight: 700;
+}
+
+/* 1. 메인 탭 - 학생 카드 */
+.student-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.student-grid {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .student-grid { grid-template-columns: 1fr 1fr; }
+}
+.st-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.st-card.over-limit {
+  border-color: var(--warn);
+}
+.st-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.st-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.st-name-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.st-name-btn:hover { color: var(--acc); }
+.badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  font-weight: 700;
+  background: var(--acc-soft);
+  color: var(--acc);
+}
+.badge.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.badge.mute {
+  background: var(--field);
+  color: var(--mute);
+  border: 1px solid var(--line);
+}
+.st-sub {
+  font-size: 12px;
+  color: var(--mute);
+  margin-top: 2px;
+}
+.prog-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.seg-bar {
+  flex: 1;
+  display: grid;
+  gap: 4px;
+  height: 10px;
+}
+.seg-cell {
+  background: var(--line);
+  border-radius: 4px;
+  height: 100%;
+}
+.seg-cell.filled { background: var(--acc); }
+.seg-cell.over { background: var(--warn); }
+.prog-text {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.prog-text.over { color: var(--warn); }
+
+.act-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.35fr 1fr;
+  gap: 6px;
+}
+.act-btn {
+  border: 1px solid var(--line);
+  background: var(--field);
+  border-radius: 8px;
+  padding: 8px 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: center;
+}
+.act-btn:active { transform: scale(0.97); }
+.act-btn.cal-open {
+  background: var(--purple-pill);
+  border-color: var(--purple-line);
+  color: var(--purple-ink);
+  font-weight: 700;
+}
+.act-btn.primary-pay {
+  background: var(--acc-soft);
+  border-color: var(--acc);
+  color: var(--acc);
+  font-weight: 700;
+}
+.history-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+.h-chip {
+  font-size: 11px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink);
+}
+.h-chip.type-휴강 {
+  color: var(--mute);
+  text-decoration: line-through;
+}
+.h-chip.type-보강 {
+  border-color: var(--acc);
+  background: var(--acc-soft);
+}
+.h-chip.type-결강 {
+  border-color: var(--warn);
+}
+.h-chip button {
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  color: var(--mute);
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* 2. 시간표 탭 */
+.tt-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.tt-scroll-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tt-block-board {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(92px, 1fr));
+  gap: 6px;
+  min-width: 660px;
+  padding: 6px 2px;
+}
+.tt-day-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tt-day-head {
+  text-align: center;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.tt-day-head .dow {
+  font-size: 11px;
+  color: var(--mute);
+  display: block;
+}
+.tt-day-head .dnum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 2px;
+}
+.tt-day-col.sun .dnum, .tt-day-col.sun .dow { color: #e04f44; }
+.tt-day-col.sat .dnum, .tt-day-col.sat .dow { color: #2b7de9; }
+.tt-day-head .dnum.today {
+  background: var(--blue);
+  color: #fff !important;
+}
+.tt-pill {
+  background: var(--purple-pill);
+  border-left: 4px solid var(--purple-line);
+  color: var(--purple-ink);
+  border-radius: 8px;
+  padding: 8px 6px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  word-break: keep-all;
+}
+.tt-pill.is-makeup {
+  background: var(--acc-soft);
+  border-left-color: var(--acc);
+  color: var(--acc);
+}
+.tt-pill.is-canceled {
+  opacity: 0.42;
+  text-decoration: line-through;
+}
+
+.tt-grid-board {
+  display: grid;
+  grid-template-columns: 46px repeat(7, minmax(84px, 1fr));
+  min-width: 660px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+}
+.tt-grid-time-col {
+  border-right: 1px solid var(--line);
+  background: var(--field);
+}
+.tt-grid-time-head { height: 44px; border-bottom: 1px solid var(--line); }
+.tt-grid-hour {
+  height: 44px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--mute);
+  text-align: right;
+  padding: 2px 5px 0 0;
+}
+.tt-grid-day-col {
+  border-right: 1px solid var(--line);
+  position: relative;
+}
+.tt-grid-day-col:last-child { border-right: 0; }
+.tt-grid-day-head {
+  height: 44px;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--field);
+}
+.tt-grid-body {
+  position: relative;
+  height: calc(44px * 16);
+  background-image: linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: 100% 44px;
+}
+.tt-grid-event {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  background: var(--purple-pill);
+  border-left: 3px solid var(--purple-line);
+  color: var(--purple-ink);
+  border-radius: 5px;
+  padding: 3px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  overflow: hidden;
+  line-height: 1.25;
+}
+.tt-grid-event.is-makeup {
+  background: var(--acc-soft);
+  border-left-color: var(--acc);
+  color: var(--acc);
+}
+.tt-grid-event.is-canceled {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+/* 3. 가계부 & 학생 상세 달력 공통 */
+.fin-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.fin-stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+.fin-stat .lab { font-size: 12px; color: var(--mute); }
+.fin-stat .val { font-size: 18px; font-weight: 700; margin-top: 4px; }
+.fin-stat .val.acc { color: var(--acc); }
+
+.cal-grid-head, .cal-grid-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.cal-grid-head span {
+  font-size: 12px;
+  color: var(--mute);
+  padding: 4px 0;
+}
+.cal-cell {
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  cursor: pointer;
+  text-align: left;
+}
+.cal-cell.selected {
+  outline: 2px solid var(--acc);
+  background: var(--card);
+}
+.cal-cell.today .d-num {
+  background: var(--acc);
+  color: var(--on);
+  border-radius: 99px;
+  padding: 0 5px;
+}
+.cal-cell.reg-day {
+  background: rgba(23, 117, 125, 0.04);
+}
+.cal-cell .d-num {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.cal-tag {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.cal-tag.inc { background: var(--acc-soft); color: var(--acc); font-weight: 700; }
+.cal-tag.exp-in { background: #e8f4ff; color: #1d64b8; }
+.cal-tag.out { background: var(--danger-bg); color: var(--danger); }
+/* 학생 달력 전용 태그 */
+.cal-tag.st-cur-정규 { background: var(--acc); color: var(--on); font-weight: 700; }
+.cal-tag.st-cur-보강 { background: var(--purple-pill); color: var(--purple-ink); border: 1px solid var(--purple-line); font-weight: 700; }
+.cal-tag.st-cur-결강 { background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+.cal-tag.st-cur-휴강 { background: var(--line); color: var(--mute); text-decoration: line-through; }
+.cal-tag.st-past { opacity: 0.55; border: 1px dashed var(--line); background: transparent; color: var(--mute); }
+.cal-tag.st-paid { background: #dcfce7; color: #15803d; font-weight: 700; }
+
+/* 4. 4주 결산 탭 */
+.settle-queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  margin-bottom: 8px;
+  gap: 8px;
+}
+.settle-queue-item.sent .sq-info {
+  text-decoration: line-through;
+  color: var(--mute);
+}
+.sq-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+.sq-left input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--acc);
+}
+.prompt-grid {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 860px) {
+  .prompt-grid {
+    grid-template-columns: 390px 1fr;
+    align-items: start;
+  }
+}
+.mini-cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  text-align: center;
+}
+.mini-cal-days button {
+  aspect-ratio: 1/1;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.mini-cal-days button.today { border-color: var(--acc); }
+.mini-cal-days button.on {
+  background: var(--acc);
+  color: var(--on);
+  font-weight: 700;
+}
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  min-height: 26px;
+}
+.date-chip {
+  border: 0;
+  background: var(--acc-soft);
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+/* 하단 고정 탭바 */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.nav-item {
+  border: 0;
+  background: transparent;
+  padding: 10px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--mute);
+  font-size: 11px;
+  font-weight: 500;
+  position: relative;
+}
+.nav-item.active {
+  color: var(--acc);
+  font-weight: 700;
+}
+.nav-badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 22px);
+  background: var(--warn);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 99px;
+  padding: 0 5px;
+  min-width: 16px;
+}
+
+/* 모달 */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 60;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+.modal-backdrop.open { display: flex; }
+.modal-box {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 16px;
+}
+.form-row { margin-bottom: 12px; }
+.form-row label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mute);
+  margin-bottom: 5px;
+}
+.sched-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.code-pre {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 11px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1 class="app-title">
+    <span id="headerTitle">과외 매니저</span>
+    <span id="syncDot" class="sync-dot" title="로컬 저장됨"></span>
+  </h1>
+  <div class="header-actions">
+    <button type="button" class="icon-btn" id="btnOpenSettings">⚙️ 설정·백업</button>
+  </div>
+</header>
+
+<main>
+  <!-- ================= 1. 메인 탭 ================= -->
+  <section id="tab-main" class="tab-panel active">
+    <div class="student-toolbar">
+      <span style="font-size:12.5px; color:var(--mute);">
+        💡 <b>[정규]/[결강]</b>은 정규 요일 날짜로 자동 기록 · <b>[📅 달력]</b>에서 보강·휴강 지정 및 전체 흐름 확인
+      </span>
+      <div style="display:flex; gap:6px; margin-left:auto;">
+        <button type="button" class="btn-ghost" id="btnToggleEnded">종료 학생 보기 (0)</button>
+        <button type="button" class="btn-primary" id="btnAddStudent">+ 학생 추가</button>
+      </div>
+    </div>
+
+    <div id="studentList" class="student-grid"></div>
+
+    <!-- 종료된 학생 목록 (토글 시 표시) -->
+    <div id="endedSection" class="card" style="display:none; margin-top:16px;">
+      <div class="section-top">
+        <h3 class="section-title">📁 종료된 학생 보관함 (과거 입금·수업 기록 보존됨)</h3>
+      </div>
+      <div id="endedStudentList"></div>
+    </div>
+  </section>
+
+  <!-- ================= 2. 시간표 탭 ================= -->
+  <section id="tab-timetable" class="tab-panel">
+    <div class="card">
+      <div class="tt-controls">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div class="seg" id="ttViewToggle">
+            <button type="button" data-val="block" class="on">목록 블록형</button>
+            <button type="button" data-val="grid">그리드 시간표</button>
+          </div>
+          <div class="seg" id="ttModeToggle">
+            <button type="button" data-val="actual" class="on">이번 주 변동 반영</button>
+            <button type="button" data-val="fixed">고정 정규만 보기</button>
+          </div>
+        </div>
+        <div class="week-nav" id="ttWeekNav">
+          <button type="button" class="icon-btn" id="btnPrevWeek">‹</button>
+          <span id="ttWeekLabel"></span>
+          <button type="button" class="icon-btn" id="btnThisWeek">이번 주</button>
+          <button type="button" class="icon-btn" id="btnNextWeek">›</button>
+        </div>
+      </div>
+
+      <div class="tt-scroll-wrap" id="timetableContainer"></div>
+      <p style="font-size:12px; color:var(--mute); margin:10px 0 0;">
+        💡 '이번 주 변동 반영' 선택 시: 학생 달력에서 지정한 <b>보강(지정 시간 반영)</b>이 새로 추가되고, <b>휴강/결강</b> 날짜의 정규 수업은 취소선으로 표시됩니다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= 3. 가계부 탭 ================= -->
+  <section id="tab-finance" class="tab-panel">
+    <div class="fin-summary-bar">
+      <div class="fin-stat">
+        <div class="lab">기초 시작 잔고 (누적 기준)</div>
+        <div style="display:flex; gap:6px; align-items:center; margin-top:4px;">
+          <input type="number" id="baseBalanceInput" step="10000" style="font-weight:700;">
+          <button type="button" class="btn-ghost" id="btnSaveBaseBal" style="white-space:nowrap;">저장</button>
+        </div>
+      </div>
+      <div class="fin-stat">
+        <div class="lab" id="finMonthIncomeLabel">이번 달 확정 총수입</div>
+        <div class="val acc" id="finMonthIncomeVal">0원</div>
+      </div>
+      <div class="fin-stat">
+        <div class="lab" id="finSelectedDateLabel">선택일 기준 예상 누적 잔고</div>
+        <div class="val" id="finSelectedDateVal">0원</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-top">
+        <div class="seg" id="finViewToggle">
+          <button type="button" data-val="calendar" class="on">현금 흐름 달력 (누적 잔고)</button>
+          <button type="button" data-val="list">당월 입금 목록 (총수입)</button>
+        </div>
+        <div class="week-nav">
+          <button type="button" class="icon-btn" id="btnFinPrevMonth">‹</button>
+          <span id="finMonthTitle"></span>
+          <button type="button" class="icon-btn" id="btnFinNextMonth">›</button>
+        </div>
+      </div>
+
+      <!-- 가계부 뷰 1: 달력 시뮬레이션 -->
+      <div id="finCalendarView">
+        <div class="cal-grid-head">
+          <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span style="color:#2b7de9">토</span><span style="color:#e04f44">일</span>
+        </div>
+        <div id="finCalDays" class="cal-grid-days"></div>
+
+        <!-- 선택한 날짜 상세 브리핑 및 카드값/지출 입력 -->
+        <div class="card" style="margin-top:12px; background:var(--field);">
+          <div class="section-top" style="margin-bottom:8px;">
+            <b id="selDateBriefTitle">날짜 상세 브리핑</b>
+            <button type="button" class="btn-ghost" id="btnAddExpense">+ 이 날짜에 지출(카드값 등) 등록</button>
+          </div>
+          <div id="selDateBriefBody" style="font-size:13px;"></div>
+        </div>
+      </div>
+
+      <!-- 가계부 뷰 2: 당월 입금 목록 -->
+      <div id="finListView" style="display:none;">
+        <div id="finIncomeListContainer"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 4. 4주 결산 탭 ================= -->
+  <section id="tab-settlement" class="tab-panel">
+    <div class="card">
+      <div class="section-top">
+        <h3 class="section-title">📬 결산 문자 발송 대기 명단 (목표 회차 도달)</h3>
+        <span style="font-size:12px; color:var(--mute);">체크 시 지움표 표시 · 메인에서 [교육비] 리셋 시 자동 제거</span>
+      </div>
+      <div id="settlementQueueList"></div>
+    </div>
+
+    <div class="section-top" style="margin-top:16px;">
+      <h3 class="section-title">✨ AI 결산 문자 프롬프트 생성기</h3>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="btn-ghost" id="btnManageSamples">예시 문구 관리</button>
+        <button type="button" class="btn-ghost" id="btnResetPrompt">새 학생으로 비우기</button>
+      </div>
+    </div>
+
+    <div class="prompt-grid">
+      <div style="display:grid; gap:12px;">
+        <div class="card" style="margin:0;">
+          <label style="font-size:12px; font-weight:700; color:var(--mute); display:block; margin-bottom:6px;">학생 이름 (위 대기 명단 클릭 시 자동 입력)</label>
+          <div style="display:flex; gap:8px;">
+            <input id="pName" placeholder="이름" autocomplete="off">
+            <div class="seg" id="pHonSeg"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin:0;">
+          <div style="font-size:12px; font-weight:700; color:var(--mute); margin-bottom:6px;">수업 날짜 (눌러서 선택·해제)</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <button type="button" class="icon-btn" id="pCalPrev">‹</button>
+            <b id="pCalTitle"></b>
+            <button type="button" class="icon-btn" id="pCalNext">›</button>
+          </div>
+          <div class="cal-grid-head">
+            <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span>
+          </div>
+          <div id="pCalDays" class="mini-cal-days"></div>
+          <div id="pDateChips" class="chip-list"></div>
+        </div>
+
+        <div class="card" style="margin:0;">
+          <label for="pMemo" style="font-size:12px; font-weight:700; color:var(--mute); display:block; margin-bottom:6px;">피드백 메모</label>
+          <textarea id="pMemo" rows="5" placeholder="이번 수업들에서 있었던 일, 학생 상태, 앞으로의 계획 등을 편하게 적어 주세요."></textarea>
+        </div>
+
+        <div class="card" style="margin:0; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <div style="font-size:12px; font-weight:700; color:var(--mute); margin-bottom:6px;">교육비</div>
+            <div class="seg" id="pPaidSeg"></div>
+          </div>
+          <div>
+            <div style="font-size:12px; font-weight:700; color:var(--mute); margin-bottom:6px;">인사</div>
+            <div class="seg" id="pTodSeg"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin:0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <b>AI 프롬프트 결과</b>
+          <button type="button" class="btn-primary" id="btnCopyPrompt">복사</button>
+        </div>
+        <textarea id="pOut" rows="16" readonly style="font-size:12.5px; line-height:1.6;"></textarea>
+        <p id="pHint" style="font-size:12px; color:var(--mute); margin:6px 0 0;"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 하단 4개 고정 탭바 -->
+<nav class="bottom-nav">
+  <button type="button" class="nav-item active" data-tab="main">
+    <span>📋</span><span>메인</span>
+  </button>
+  <button type="button" class="nav-item" data-tab="timetable">
+    <span>🗓️</span><span>시간표</span>
+  </button>
+  <button type="button" class="nav-item" data-tab="finance">
+    <span>💰</span><span>가계부</span>
+  </button>
+  <button type="button" class="nav-item" data-tab="settlement">
+    <span>✉️</span><span>4주 결산</span>
+    <span id="settleBadge" class="nav-badge" style="display:none;">0</span>
+  </button>
+</nav>
+
+<!-- ================= 모달 A: 학생별 전용 달력 (수업 흐름 & 보강/휴강 기록) ================= -->
+<div class="modal-backdrop" id="studentCalModal">
+  <div class="modal-box">
+    <div class="section-top" style="margin-bottom:8px;">
+      <div>
+        <h3 class="section-title" id="stCalModalTitle">학생 수업 달력</h3>
+        <div id="stCalSubInfo" style="font-size:12px; color:var(--mute); margin-top:2px;"></div>
+      </div>
+      <button type="button" class="icon-btn" onclick="closeModal('studentCalModal')">✕</button>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <button type="button" class="icon-btn" id="btnStCalPrev">‹ 이전 달</button>
+      <b id="stCalMonthLabel" style="font-size:15px;"></b>
+      <button type="button" class="icon-btn" id="btnStCalNext">다음 달 ›</button>
+    </div>
+
+    <div class="cal-grid-head">
+      <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span style="color:#2b7de9">토</span><span style="color:#e04f44">일</span>
+    </div>
+    <div id="stCalGridDays" class="cal-grid-days"></div>
+
+    <div style="font-size:11px; color:var(--mute); margin-top:6px; display:flex; gap:10px; flex-wrap:wrap;">
+      <span>● 진한 배지: 이번 주기 진행 중</span>
+      <span>○ 점선 배지: 지난 주기(정산 완료) 기록</span>
+      <span>💰 교육비 납부일</span>
+    </div>
+
+    <!-- 달력에서 선택한 날짜 액션 패널 -->
+    <div class="card" style="margin:12px 0 0; background:var(--field);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <b id="stCalSelectedDateLabel">날짜 선택</b>
+        <span style="font-size:11px; color:var(--mute);">원하는 날짜를 누르고 아래 버튼으로 기록하세요</span>
+      </div>
+
+      <!-- 보강 시간 설정 및 추가 박스 -->
+      <div style="padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--card); margin-bottom:8px;">
+        <div style="font-size:12px; font-weight:700; margin-bottom:6px; color:var(--acc);">➕ 선택한 날짜에 [보강] 추가 (시간표 연동)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:6px; align-items:center;">
+          <input type="time" id="stCalMakeupStart" value="14:00">
+          <input type="time" id="stCalMakeupEnd" value="16:00">
+          <button type="button" class="btn-primary" id="btnStCalAddMakeup">보강 등록</button>
+        </div>
+      </div>
+
+      <!-- 휴강 / 정규 / 결강 빠른 추가 -->
+      <div style="display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:6px; margin-bottom:10px;">
+        <button type="button" class="btn-ghost" id="btnStCalAddSkip" style="font-weight:700;">🛑 이 날짜 [휴강] 체크</button>
+        <button type="button" class="btn-ghost" id="btnStCalAddReg">➕ [정규] 추가</button>
+        <button type="button" class="btn-ghost" id="btnStCalAddAbs">➕ [결강] 추가</button>
+      </div>
+
+      <!-- 해당 날짜에 기록된 내역 리스트 및 삭제 -->
+      <div id="stCalDayLogsList" style="font-size:12.5px; border-top:1px dashed var(--line); padding-top:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 모달 1: 학생 추가 / 정보 수정 ================= -->
+<div class="modal-backdrop" id="studentModal">
+  <div class="modal-box">
+    <div class="section-top">
+      <h3 class="section-title" id="stModalTitle">학생 등록</h3>
+      <button type="button" class="icon-btn" onclick="closeModal('studentModal')">✕</button>
+    </div>
+    <input type="hidden" id="stIdInput">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;" class="form-row">
+      <div>
+        <label>학생 이름</label>
+        <input type="text" id="stNameInput" placeholder="예: 윤서">
+      </div>
+      <div>
+        <label>학부모 호칭</label>
+        <select id="stHonInput">
+          <option value="어머님">어머님</option>
+          <option value="아버님">아버님</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;" class="form-row">
+      <div>
+        <label>정산 기준 회차</label>
+        <input type="number" id="stTargetInput" value="4" min="1" max="20">
+      </div>
+      <div>
+        <label>1주기 교육비 (원)</label>
+        <input type="number" id="stFeeInput" value="700000" step="10000">
+      </div>
+      <div>
+        <label>납부 방식</label>
+        <select id="stPayTypeInput">
+          <option value="미납">후불 (미납 안내)</option>
+          <option value="선납">선납</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <label style="margin:0;">정규 수업 요일 및 시간 (다회 추가 가능)</label>
+        <button type="button" class="btn-ghost" id="btnAddSchedRow" style="padding:3px 8px; font-size:12px;">+ 요일 추가</button>
+      </div>
+      <div id="schedRowsContainer"></div>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; gap:8px; flex-wrap:wrap;">
+      <div id="stModalLeftActions" style="display:flex; gap:6px;"></div>
+      <div style="display:flex; gap:6px; margin-left:auto;">
+        <button type="button" class="btn-ghost" onclick="closeModal('studentModal')">취소</button>
+        <button type="button" class="btn-primary" id="btnSaveStudent">저장하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 모달 2: 예시 문구 관리 ================= -->
+<div class="modal-backdrop" id="sampleModal">
+  <div class="modal-box">
+    <div class="section-top">
+      <h3 class="section-title">예시 피드백 문구 관리</h3>
+      <button type="button" class="icon-btn" onclick="closeModal('sampleModal')">✕</button>
+    </div>
+    <p style="font-size:12px; color:var(--mute); margin-top:0;">
+      AI가 선생님의 문체와 구성을 참고할 수 있도록 실제 보냈던 피드백 예시를 등록해 두는 곳입니다.
+    </p>
+    <div id="sampleListContainer" style="display:grid; gap:8px; margin-bottom:12px;"></div>
+    <button type="button" class="btn-ghost" id="btnAddSample" style="width:100%; margin-bottom:12px;">+ 새 예시 문구 추가</button>
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <button type="button" class="btn-primary" id="btnSaveSamples">저장 및 닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 모달 3: 설정 & 구글 스프레드시트 연동 ================= -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal-box">
+    <div class="section-top">
+      <h3 class="section-title">⚙️ 프로필 설정 및 구글 드라이브 연동</h3>
+      <button type="button" class="icon-btn" onclick="closeModal('settingsModal')">✕</button>
+    </div>
+
+    <div class="form-row">
+      <label>앱 상단 타이틀</label>
+      <input type="text" id="setAppTitleInput" placeholder="예: 과외 매니저">
+    </div>
+    <div class="form-row">
+      <label>화면 테마</label>
+      <select id="setThemeSelect">
+        <option value="auto">시스템 설정 따르기</option>
+        <option value="light">라이트 모드</option>
+        <option value="dark">다크 모드</option>
+      </select>
+    </div>
+
+    <hr style="border:0; border-top:1px solid var(--line); margin:16px 0;">
+
+    <h4 style="margin:0 0 8px; font-size:14px;">☁️ 구글 스프레드시트(Apps Script) 자동 저장 연동</h4>
+    <p style="font-size:12px; color:var(--mute); margin:0 0 8px;">
+      비용 0원으로 내 구글 드라이브에 실시간 백업합니다. 아래 웹 앱 URL을 입력해 두면 수업을 누를 때마다 자동으로 내 시트에 저장됩니다.
+    </p>
+    <div class="form-row">
+      <label>구글 Apps Script 웹 앱 URL</label>
+      <input type="url" id="setGasUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+    <div style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
+      <button type="button" class="btn-primary" id="btnSaveSettings">설정 저장</button>
+      <button type="button" class="btn-ghost" id="btnCloudPush">⬆️ 지금 구글로 백업</button>
+      <button type="button" class="btn-ghost" id="btnCloudPull">⬇️ 구글에서 불러오기</button>
+    </div>
+
+    <details style="font-size:12px; color:var(--mute); margin-bottom:14px;">
+      <summary style="cursor:pointer; font-weight:700; color:var(--ink);">📖 3분 만에 내 구글 스프레드시트 연동하는 방법 (클릭)</summary>
+      <div style="margin-top:8px; line-height:1.6;">
+        1. PC에서 <b>Google 스프레드시트</b> 새 문서를 하나 만듭니다.<br>
+        2. 상단 메뉴 <b>[확장 프로그램] → [Apps Script]</b>를 클릭합니다.<br>
+        3. 기존 코드를 지우고 아래 <b>[스크립트 코드 복사]</b> 버튼을 눌러 붙여넣은 뒤 저장(💾)합니다.<br>
+        4. 우측 상단 <b>[배포] → [새 배포]</b> 클릭 → 유형을 <b>'웹 앱'</b>으로 선택 → 액세스 권한을 <b>'모든 사용자'</b>로 설정 후 배포합니다.<br>
+        5. 발급된 <b>웹 앱 URL</b>을 복사해 위 입력 칸에 붙여넣으면 끝입니다!
+        <div class="code-pre" id="gasCodeBlock">function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  sheet.getRange("A1").setValue(e.postData.contents);
+  return ContentService.createTextOutput("OK");
+}
+function doGet() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = sheet.getRange("A1").getValue();
+  return ContentService.createTextOutput(data).setMimeType(ContentService.MimeType.JSON);
+}</div>
+        <button type="button" class="btn-ghost" id="btnCopyGasCode" style="margin-top:6px;">스크립트 코드 복사</button>
+      </div>
+    </details>
+
+    <hr style="border:0; border-top:1px solid var(--line); margin:16px 0;">
+
+    <h4 style="margin:0 0 8px; font-size:14px;">💾 수동 파일 백업 및 복원 (.json)</h4>
+    <div style="display:flex; gap:8px;">
+      <button type="button" class="btn-ghost" id="btnExportJson">데이터 파일 다운로드</button>
+      <label class="btn-ghost" style="cursor:pointer; margin:0;">
+        백업 파일 불러오기
+        <input type="file" id="inputImportJson" accept=".json" style="display:none;">
+      </label>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'tutor-manager-pro-v2';
+const DOW_NAMES = ['월', '화', '수', '목', '금', '토', '일']; // 월=0 ... 일=6
+const pad = n => String(n).padStart(2, '0');
+const fmtMoney = n => Number(n || 0).toLocaleString('ko-KR') + '원';
+
+function toIsoDate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+const todayIso = toIsoDate(new Date());
+
+const DEFAULT_SAMPLES = [
+  "말씀드린 대로 ○○는 시간 단축이 가장 우선인 상황입니다. 독서도 오답 진행해 보면 시간 때문에 풀이하지 못할 뿐 맞힐 수 있는 문제가 많아 아쉬운 편입니다. 따라서 수업 시간에 시간 배분에 대해 세세하게 한 지문씩 안내했으며(이번 9월에는 시간에 쫓겨서 아예 시간을 보지 못했다고 합니다) 시간 부분에 있어 관리 연습을 많이 해 보지 못한 것 같아 회차별 연습을 늘렸습니다. 요일을 정해 한 주 1~2회씩 아날로그 시계를 두고 수능과 같이 시간 배분을 연습하도록 지도했습니다. 시간 단축과 배분만 잘해 주어도 상당 부분 개선될 것으로 보이니 어머님께서도 많은 독려 부탁드립니다. 진행 상황에 대해 궁금한 부분 있으시면 언제든 연락 남겨 주세요.",
+  "○○는 추석 연휴에 시간이 허락한다면 지난 결석분 보강 1회가 예정되어 있습니다. 진도는 다행히 일찍 나가 두었지만 복습을 반복해야 하는 상황이므로 ○○가 복습을 꾸준히 할 수 있게 많이 독려하고 있습니다. 특히 ○○가 수업과 수업 사이 잊어버리는 부분이 조금씩 있으므로 어머님께서도 많은 독려 부탁드립니다. 꼭 성적 올릴 수 있게끔 많이 신경 쓰고 있습니다.",
+  "○○는 현재 산문개념어 진도를 새로 나가기 시작해, 기초 문학을 모두 마무리할 예정입니다. 그 이후에는 문법 1회차 진도를 나가 3학년 진입쯤에는 기본기를 완전하게 갖출 수 있도록 지도하려고 커리큘럼을 짜 둔 상태입니다. 더불어, 독서는 호흡을 조금 천천히 가져가면서 고난이도 지문도 제대로 이해하려는 목표를 가지고 있으니 ○○가 꼬리를 무는 질답을 다소 답답해하더라도 많은 독려 부탁드립니다.",
+  "○○는 점차 궤도를 찾아 가는 중으로, 2등급과 3등급 극초반 정도에서 마지막 스퍼트를 내고 있습니다. 현재 꾸준한 연습을 하고 있어 흐름을 잘 가져가고 있으니, 앞으로 남은 기간 처지지 않도록 유지하는 것이 가장 중요해 보입니다. 수업 시간에도 학습량과 꾸준함을 강조하고 있으며, 실전 중심으로 진행하고 있습니다. 어머님께서도 궁금한 부분 있으시면 언제든 연락 남겨 주세요."
+];
+
+let state = {
+  settings: {
+    appTitle: '과외 매니저',
+    theme: 'auto',
+    gasUrl: ''
+  },
+  baseBalance: 1000000,
+  students: [
+    {
+      id: 'st_1',
+      name: '윤서',
+      hon: '어머님',
+      targetCount: 4,
+      fee: 700000,
+      payType: '미납',
+      status: 'active',
+      sentCheck: false,
+      schedules: [{ dow: 2, start: '10:00', end: '12:00' }],
+      currentLogs: [
+        { id: 'l1', date: '2026-09-23', type: '정규' },
+        { id: 'l2', date: '2026-09-30', type: '정규' },
+        { id: 'l3', date: '2026-10-07', type: '정규' },
+        { id: 'l4', date: '2026-10-14', type: '정규' }
+      ],
+      archivedLogs: [
+        { id: 'al1', date: '2026-08-26', type: '정규' },
+        { id: 'al2', date: '2026-09-02', type: '정규' },
+        { id: 'al3', date: '2026-09-09', type: '정규' },
+        { id: 'al4', date: '2026-09-16', type: '정규' }
+      ]
+    },
+    {
+      id: 'st_2',
+      name: '지수',
+      hon: '어머님',
+      targetCount: 4,
+      fee: 600000,
+      payType: '미납',
+      status: 'active',
+      sentCheck: false,
+      schedules: [{ dow: 2, start: '13:30', end: '15:30' }],
+      currentLogs: [
+        { id: 'l5', date: '2026-10-07', type: '정규' },
+        { id: 'l6', date: '2026-10-14', type: '정규' }
+      ],
+      archivedLogs: []
+    },
+    {
+      id: 'st_3',
+      name: '보민',
+      hon: '어머님',
+      targetCount: 8,
+      fee: 800000,
+      payType: '선납',
+      status: 'active',
+      sentCheck: false,
+      schedules: [
+        { dow: 2, start: '19:00', end: '21:00' },
+        { dow: 5, start: '12:40', end: '14:40' }
+      ],
+      currentLogs: [
+        { id: 'l7', date: '2026-10-03', type: '정규' },
+        { id: 'l8', date: '2026-10-07', type: '정규' },
+        { id: 'l9', date: '2026-10-10', type: '정규' },
+        { id: 'l10', date: '2026-10-14', type: '정규' }
+      ],
+      archivedLogs: []
+    }
+  ],
+  incomes: [
+    { id: 'inc_0', date: '2026-09-17', studentId: 'st_1', studentName: '윤서', amount: 700000 },
+    { id: 'inc_1', date: '2026-10-05', studentId: 'st_3', studentName: '보민', amount: 800000 }
+  ],
+  expenses: [
+    { id: 'exp_1', date: '2026-10-09', title: '카드값 출금', amount: 450000 }
+  ],
+  samples: [...DEFAULT_SAMPLES],
+  promptDraft: {
+    name: '',
+    hon: '어머님',
+    dates: [],
+    memo: '',
+    paid: '미납',
+    tod: '저녁'
+  }
+};
+
+try {
+  const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('tutor-manager-pro-v1');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    state = Object.assign(state, parsed);
+    if (!state.samples || !state.samples.length) state.samples = [...DEFAULT_SAMPLES];
+    if (state.settings && state.settings.appTitle === '국어 과외 매니저') {
+      state.settings.appTitle = '과외 매니저';
+    }
+    state.students.forEach(s => {
+      if (!Array.isArray(s.archivedLogs)) s.archivedLogs = [];
+    });
+  }
+} catch (e) {}
+
+function saveState(skipCloud = false) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const dot = document.getElementById('syncDot');
+    dot.className = 'sync-dot ok';
+  } catch (e) {}
+  if (!skipCloud && state.settings.gasUrl) {
+    pushToCloud(true);
+  }
+}
+
+function applyThemeAndTitle() {
+  document.getElementById('headerTitle').textContent = state.settings.appTitle || '과외 매니저';
+  if (state.settings.theme === 'light' || state.settings.theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', state.settings.theme);
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+}
+
+function getCountableLogs(st) {
+  return (st.currentLogs || []).filter(l => l.type === '정규' || l.type === '보강' || l.type === '결강');
+}
+
+// 스마트 정규 수업일 계산: 오늘을 포함해 가장 최근에 지난 정규 수업일(이미 기록되어 있다면 다음 정규일)을 자동 반환
+function getSmartRegularDate(st) {
+  const dows = (st.schedules || []).map(sc => Number(sc.dow));
+  if (!dows.length) return todayIso;
+
+  const existingDates = new Set([
+    ...(st.currentLogs || []).map(l => l.date),
+    ...(st.archivedLogs || []).map(l => l.date)
+  ]);
+
+  const now = new Date();
+  // 1순위: 오늘부터 과거 14일 이내의 정규 수업일 중 아직 기록되지 않은 가장 최근 날짜
+  for (let back = 0; back <= 14; back++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
+    const ourDow = (d.getDay() + 6) % 7;
+    if (dows.includes(ourDow)) {
+      const iso = toIsoDate(d);
+      if (!existingDates.has(iso)) return iso;
+    }
+  }
+  // 2순위: 최근 날짜들이 모두 기록되어 있다면 오늘 이후 가장 가까운 정규 수업일
+  for (let fwd = 0; fwd <= 14; fwd++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + fwd);
+    const ourDow = (d.getDay() + 6) % 7;
+    if (dows.includes(ourDow)) {
+      const iso = toIsoDate(d);
+      if (!existingDates.has(iso)) return iso;
+    }
+  }
+  return todayIso;
+}
+
+// ================= 1. 메인 탭 렌더링 =================
+let showEnded = false;
+
+function renderMainTab() {
+  const listEl = document.getElementById('studentList');
+  listEl.innerHTML = '';
+
+  const activeStudents = state.students.filter(s => s.status !== 'ended');
+  const endedStudents = state.students.filter(s => s.status === 'ended');
+
+  document.getElementById('btnToggleEnded').textContent =
+    showEnded ? `종료 학생 닫기 (${endedStudents.length})` : `종료 학생 보기 (${endedStudents.length})`;
+
+  if (!activeStudents.length) {
+    listEl.innerHTML = `<div class="card" style="grid-column:1/-1; text-align:center; color:var(--mute);">등록된 진행 중 학생이 없습니다. 우측 상단 [+ 학생 추가]를 눌러주세요.</div>`;
+  }
+
+  activeStudents.forEach(st => {
+    const counted = getCountableLogs(st);
+    const cnt = counted.length;
+    const target = Number(st.targetCount) || 4;
+    const isOver = cnt > target;
+    const isFull = cnt >= target;
+
+    const card = document.createElement('div');
+    card.className = 'st-card' + (isOver ? ' over-limit' : '');
+
+    const schedStr = (st.schedules || [])
+      .map(sc => `${DOW_NAMES[sc.dow]} ${sc.start}~${sc.end}`)
+      .join(', ') || '시간 미지정';
+
+    const totalCells = Math.max(target, cnt);
+    let cellsHtml = '';
+    for (let i = 0; i < totalCells; i++) {
+      let cls = 'seg-cell';
+      if (i < cnt) cls += (i >= target ? ' over' : ' filled');
+      cellsHtml += `<div class="${cls}"></div>`;
+    }
+
+    const sortedLogs = [...(st.currentLogs || [])].sort((a, b) => a.date.localeCompare(b.date));
+    const chipsHtml = sortedLogs.length
+      ? sortedLogs.map(l => {
+          const [, m, d] = l.date.split('-').map(Number);
+          const timeInfo = (l.type === '보강' && l.start) ? `(${fmtShortTime(l.start)})` : '';
+          return `<span class="h-chip type-${l.type}">${m}/${d} ${l.type}${timeInfo}<button type="button" title="이 기록 취소" onclick="removeLog('${st.id}','${l.id}')">×</button></span>`;
+        }).join('')
+      : `<span style="font-size:11px; color:var(--mute);">이번 주기 기록이 없습니다</span>`;
+
+    card.innerHTML = `
+      <div class="st-head">
+        <div>
+          <div class="st-name-wrap">
+            <button type="button" class="st-name-btn" onclick="openStudentCalendar('${st.id}')" title="학생 수업 달력 열기">
+              <span>${st.name}</span>
+              <span style="font-size:13px;">📅</span>
+            </button>
+            <span class="badge mute">${st.payType}</span>
+            ${isOver ? `<span class="badge warn">+${cnt - target}회 초과 진행!</span>` : (isFull ? `<span class="badge">결산 도달</span>` : '')}
+          </div>
+          <div class="st-sub">${schedStr} · ${fmtMoney(st.fee)} (${target}회 기준)</div>
+        </div>
+        <button type="button" class="icon-btn" onclick="openStudentModal('${st.id}')">정보수정</button>
+      </div>
+
+      <div class="prog-row">
+        <div class="seg-bar" style="grid-template-columns:repeat(${totalCells}, 1fr);">${cellsHtml}</div>
+        <div class="prog-text ${isOver ? 'over' : ''}">${cnt} / ${target}회</div>
+      </div>
+
+      <div class="act-btns">
+        <button type="button" class="act-btn" onclick="quickAddRegularLog('${st.id}','정규')">정규</button>
+        <button type="button" class="act-btn" onclick="quickAddRegularLog('${st.id}','결강')">결강</button>
+        <button type="button" class="act-btn cal-open" onclick="openStudentCalendar('${st.id}')">📅 달력(보강·휴강)</button>
+        <button type="button" class="act-btn primary-pay" onclick="payAndReset('${st.id}')">교육비</button>
+      </div>
+
+      <div class="history-chips">${chipsHtml}</div>
+    `;
+    listEl.appendChild(card);
+  });
+
+  const endedSec = document.getElementById('endedSection');
+  const endedListEl = document.getElementById('endedStudentList');
+  endedSec.style.display = showEnded ? 'block' : 'none';
+  endedListEl.innerHTML = '';
+  if (!endedStudents.length) {
+    endedListEl.innerHTML = `<div style="font-size:13px; color:var(--mute);">종료 처리된 학생이 없습니다.</div>`;
+  } else {
+    endedStudents.forEach(st => {
+      const row = document.createElement('div');
+      row.className = 'settle-queue-item';
+      row.innerHTML = `
+        <div>
+          <b>${st.name}</b> <span style="font-size:12px; color:var(--mute);">(${fmtMoney(st.fee)} · 과거 입금·수업 기록 보존 중)</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn-ghost" onclick="openStudentCalendar('${st.id}')">📅 과거 달력</button>
+          <button type="button" class="btn-ghost" onclick="restoreStudent('${st.id}')">복구</button>
+          <button type="button" class="btn-danger" onclick="deleteStudentCompletely('${st.id}')">완전 삭제</button>
+        </div>
+      `;
+      endedListEl.appendChild(row);
+    });
+  }
+
+  updateSettlementBadge();
+}
+
+// 메인에서 [정규] 또는 [결강] 클릭 시 해당 학생의 원래 정규 수업 요일 날짜로 스마트 등록
+window.quickAddRegularLog = function(stId, type) {
+  const st = state.students.find(s => s.id === stId);
+  if (!st) return;
+  const targetDate = getSmartRegularDate(st);
+  st.currentLogs.push({
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    date: targetDate,
+    type
+  });
+  saveState();
+  renderAll();
+};
+
+window.removeLog = function(stId, logId, fromArchive = false) {
+  const st = state.students.find(s => s.id === stId);
+  if (!st) return;
+  if (fromArchive) {
+    st.archivedLogs = (st.archivedLogs || []).filter(l => l.id !== logId);
+  } else {
+    st.currentLogs = (st.currentLogs || []).filter(l => l.id !== logId);
+  }
+  saveState();
+  renderAll();
+  if (currentCalStudentId === stId) renderStudentCalendarModal();
+};
+
+// 교육비 납부 및 리셋 (과거 수업 기록은 archivedLogs로 영구 보존 + 초과 수업은 새 주기 1회차로 자동 이월)
+window.payAndReset = function(stId) {
+  const st = state.students.find(s => s.id === stId);
+  if (!st) return;
+  const target = Number(st.targetCount) || 4;
+  const counted = getCountableLogs(st).sort((a, b) => a.date.localeCompare(b.date));
+
+  const carryCount = Math.max(0, counted.length - target);
+  const msg = carryCount > 0
+    ? `${st.name} 학생의 교육비(${fmtMoney(st.fee)}) 입금을 확정하고 리셋할까요?\n\n※ 이전 ${target}회 수업은 과거 달력 기록으로 보존되며, 초과 진행한 ${carryCount}회 수업은 새 주기의 1회차~로 자동 이월됩니다.`
+    : `${st.name} 학생의 교육비(${fmtMoney(st.fee)}) 입금을 가계부에 기록하고 회차를 리셋할까요?\n(이번 주기 수업 기록은 학생 달력에 그대로 보존됩니다)`;
+
+  if (!confirm(msg)) return;
+
+  state.incomes.push({
+    id: 'inc_' + Date.now(),
+    date: todayIso,
+    studentId: st.id,
+    studentName: st.name,
+    amount: Number(st.fee) || 0
+  });
+
+  if (!Array.isArray(st.archivedLogs)) st.archivedLogs = [];
+
+  if (carryCount > 0) {
+    const carryIds = new Set(counted.slice(target).map(l => l.id));
+    const toArchive = st.currentLogs.filter(l => !carryIds.has(l.id));
+    st.archivedLogs.push(...toArchive);
+    st.currentLogs = st.currentLogs.filter(l => carryIds.has(l.id));
+  } else {
+    st.archivedLogs.push(...st.currentLogs);
+    st.currentLogs = [];
+  }
+  st.sentCheck = false;
+
+  saveState();
+  renderAll();
+};
+
+// ================= 모달 A: 학생별 전용 달력 (보강 시간 지정 & 휴강 & 전체 흐름) =================
+let currentCalStudentId = null;
+let stCalMonthDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let stCalSelectedDate = todayIso;
+
+window.openStudentCalendar = function(stId) {
+  const st = state.students.find(s => s.id === stId);
+  if (!st) return;
+  currentCalStudentId = stId;
+  stCalMonthDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  stCalSelectedDate = todayIso;
+
+  // 보강 기본 시간을 해당 학생의 첫 정규 수업 시간으로 자동 세팅
+  const defStart = st.schedules?.[0]?.start || '14:00';
+  const defEnd = st.schedules?.[0]?.end || '16:00';
+  document.getElementById('stCalMakeupStart').value = defStart;
+  document.getElementById('stCalMakeupEnd').value = defEnd;
+
+  renderStudentCalendarModal();
+  document.getElementById('studentCalModal').classList.add('open');
+};
+
+function renderStudentCalendarModal() {
+  const st = state.students.find(s => s.id === currentCalStudentId);
+  if (!st) return;
+
+  const schedStr = (st.schedules || [])
+    .map(sc => `${DOW_NAMES[sc.dow]} ${sc.start}~${sc.end}`)
+    .join(', ') || '정규 시간 미지정';
+
+  document.getElementById('stCalModalTitle').textContent = `📅 ${st.name} 학생 수업 달력`;
+  document.getElementById('stCalSubInfo').textContent =
+    `정규 일정: ${schedStr} · 현재 ${getCountableLogs(st).length} / ${st.targetCount}회 진행 중`;
+
+  const y = stCalMonthDate.getFullYear();
+  const m = stCalMonthDate.getMonth();
+  document.getElementById('stCalMonthLabel').textContent = `${y}년 ${m + 1}월`;
+
+  const grid = document.getElementById('stCalGridDays');
+  grid.innerHTML = '';
+
+  const firstOffset = (new Date(y, m, 1).getDay() + 6) % 7;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const regDows = (st.schedules || []).map(sc => Number(sc.dow));
+
+  for (let i = 0; i < firstOffset; i++) {
+    grid.appendChild(document.createElement('div'));
+  }
+
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = `${y}-${pad(m + 1)}-${pad(d)}`;
+    const ourDow = (new Date(y, m, d).getDay() + 6) % 7;
+    const isRegDay = regDows.includes(ourDow);
+
+    const cell = document.createElement('div');
+    cell.className = [
+      'cal-cell',
+      iso === stCalSelectedDate ? 'selected' : '',
+      iso === todayIso ? 'today' : '',
+      isRegDay ? 'reg-day' : ''
+    ].join(' ');
+
+    const curLogs = (st.currentLogs || []).filter(l => l.date === iso);
+    const pastLogs = (st.archivedLogs || []).filter(l => l.date === iso);
+    const paidIncs = (state.incomes || []).filter(inc => inc.studentId === st.id && inc.date === iso);
+
+    let tagsHtml = '';
+    curLogs.forEach(l => {
+      const tStr = (l.type === '보강' && l.start) ? ` ${fmtShortTime(l.start)}` : '';
+      tagsHtml += `<div class="cal-tag st-cur-${l.type}">${l.type}${tStr}</div>`;
+    });
+    pastLogs.forEach(l => {
+      tagsHtml += `<div class="cal-tag st-past">(과거) ${l.type}</div>`;
+    });
+    paidIncs.forEach(() => {
+      tagsHtml += `<div class="cal-tag st-paid">💰 교육비</div>`;
+    });
+
+    cell.innerHTML = `<span class="d-num">${d}${isRegDay ? ' <small style="font-weight:400;color:var(--mute);">정규</small>' : ''}</span>${tagsHtml}`;
+    cell.onclick = () => {
+      stCalSelectedDate = iso;
+      renderStudentCalendarModal();
+    };
+    grid.appendChild(cell);
+  }
+
+  // 하단 선택 날짜 상세 및 액션 업데이트
+  const [, sm, sd] = stCalSelectedDate.split('-').map(Number);
+  const selDow = DOW_NAMES[(new Date(stCalSelectedDate).getDay() + 6) % 7];
+  document.getElementById('stCalSelectedDateLabel').textContent = `📌 ${sm}월 ${sd}일 (${selDow}요일) 기록 관리`;
+
+  const dayCur = (st.currentLogs || []).filter(l => l.date === stCalSelectedDate);
+  const dayPast = (st.archivedLogs || []).filter(l => l.date === stCalSelectedDate);
+  const logListEl = document.getElementById('stCalDayLogsList');
+
+  if (!dayCur.length && !dayPast.length) {
+    logListEl.innerHTML = `<span style="color:var(--mute);">이 날짜에 등록된 수업 기록이 없습니다.</span>`;
+  } else {
+    let html = '';
+    dayCur.forEach(l => {
+      const tInfo = (l.type === '보강' && l.start) ? ` (${l.start}~${l.end})` : '';
+      html += `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span>✔️ <b>[현재 주기] ${l.type}</b>${tInfo}</span>
+          <button type="button" class="icon-btn" style="padding:2px 8px; font-size:11px;" onclick="removeLog('${st.id}','${l.id}',false)">기록 취소</button>
+        </div>
+      `;
+    });
+    dayPast.forEach(l => {
+      const tInfo = (l.type === '보강' && l.start) ? ` (${l.start}~${l.end})` : '';
+      html += `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; color:var(--mute);">
+          <span>📁 [과거 주기] ${l.type}${tInfo}</span>
+          <button type="button" class="icon-btn" style="padding:2px 8px; font-size:11px;" onclick="removeLog('${st.id}','${l.id}',true)">삭제</button>
+        </div>
+      `;
+    });
+    logListEl.innerHTML = html;
+  }
+}
+
+document.getElementById('btnStCalPrev').onclick = () => {
+  stCalMonthDate = new Date(stCalMonthDate.getFullYear(), stCalMonthDate.getMonth() - 1, 1);
+  renderStudentCalendarModal();
+};
+document.getElementById('btnStCalNext').onclick = () => {
+  stCalMonthDate = new Date(stCalMonthDate.getFullYear(), stCalMonthDate.getMonth() + 1, 1);
+  renderStudentCalendarModal();
+};
+
+function addLogFromStudentCal(type, start = null, end = null) {
+  const st = state.students.find(s => s.id === currentCalStudentId);
+  if (!st) return;
+  const newLog = {
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    date: stCalSelectedDate,
+    type
+  };
+  if (start) newLog.start = start;
+  if (end) newLog.end = end;
+  st.currentLogs.push(newLog);
+  saveState();
+  renderAll();
+  renderStudentCalendarModal();
+}
+
+document.getElementById('btnStCalAddMakeup').onclick = () => {
+  const s = document.getElementById('stCalMakeupStart').value || '14:00';
+  const e = document.getElementById('stCalMakeupEnd').value || '16:00';
+  addLogFromStudentCal('보강', s, e);
+};
+document.getElementById('btnStCalAddSkip').onclick = () => addLogFromStudentCal('휴강');
+document.getElementById('btnStCalAddReg').onclick = () => addLogFromStudentCal('정규');
+document.getElementById('btnStCalAddAbs').onclick = () => addLogFromStudentCal('결강');
+
+// ================= 학생 복구 / 완전삭제 / 수정 모달 =================
+window.restoreStudent = function(stId) {
+  const st = state.students.find(s => s.id === stId);
+  if (st) {
+    st.status = 'active';
+    saveState();
+    renderAll();
+  }
+};
+
+window.deleteStudentCompletely = function(stId) {
+  const st = state.students.find(s => s.id === stId);
+  if (!st) return;
+  if (!confirm(`[경고] '${st.name}' 학생을 완전 삭제하면 과거 가계부 입금 기록까지 모두 사라집니다. 정말 삭제할까요?\n(과거 기록을 남기려면 '종료' 기능을 사용하세요)`)) return;
+  state.students = state.students.filter(s => s.id !== stId);
+  state.incomes = state.incomes.filter(inc => inc.studentId !== stId);
+  saveState();
+  closeModal('studentModal');
+  renderAll();
+};
+
+document.getElementById('btnToggleEnded').onclick = () => {
+  showEnded = !showEnded;
+  renderMainTab();
+};
+
+function addSchedRowUI(dow = 0, start = '16:00', end = '18:00') {
+  const wrap = document.getElementById('schedRowsContainer');
+  const div = document.createElement('div');
+  div.className = 'sched-item';
+  div.innerHTML = `
+    <select class="sc-dow">
+      ${DOW_NAMES.map((n, i) => `<option value="${i}" ${i === Number(dow) ? 'selected' : ''}>${n}요일</option>`).join('')}
+    </select>
+    <input type="time" class="sc-start" value="${start}">
+    <input type="time" class="sc-end" value="${end}">
+    <button type="button" class="icon-btn" onclick="this.parentElement.remove()">삭제</button>
+  `;
+  wrap.appendChild(div);
+}
+
+document.getElementById('btnAddSchedRow').onclick = () => addSchedRowUI(0, '17:00', '19:00');
+document.getElementById('btnAddStudent').onclick = () => openStudentModal(null);
+
+window.openStudentModal = function(stId) {
+  const modal = document.getElementById('studentModal');
+  const wrap = document.getElementById('schedRowsContainer');
+  const leftAct = document.getElementById('stModalLeftActions');
+  wrap.innerHTML = '';
+  leftAct.innerHTML = '';
+
+  if (!stId) {
+    document.getElementById('stModalTitle').textContent = '새 학생 등록';
+    document.getElementById('stIdInput').value = '';
+    document.getElementById('stNameInput').value = '';
+    document.getElementById('stHonInput').value = '어머님';
+    document.getElementById('stTargetInput').value = 4;
+    document.getElementById('stFeeInput').value = 700000;
+    document.getElementById('stPayTypeInput').value = '미납';
+    addSchedRowUI(2, '16:00', '18:00');
+  } else {
+    const st = state.students.find(s => s.id === stId);
+    if (!st) return;
+    document.getElementById('stModalTitle').textContent = `${st.name} 학생 정보 수정`;
+    document.getElementById('stIdInput').value = st.id;
+    document.getElementById('stNameInput').value = st.name;
+    document.getElementById('stHonInput').value = st.hon || '어머님';
+    document.getElementById('stTargetInput').value = st.targetCount || 4;
+    document.getElementById('stFeeInput').value = st.fee || 0;
+    document.getElementById('stPayTypeInput').value = st.payType || '미납';
+    (st.schedules || []).forEach(sc => addSchedRowUI(sc.dow, sc.start, sc.end));
+
+    leftAct.innerHTML = `
+      <button type="button" class="btn-ghost" onclick="endStudent('${st.id}')">수업 종료(기록보존)</button>
+      <button type="button" class="btn-danger" onclick="deleteStudentCompletely('${st.id}')">완전 삭제</button>
+    `;
+  }
+  modal.classList.add('open');
+};
+
+window.endStudent = function(stId) {
+  const st = state.students.find(s => s.id === stId);
+  if (!st) return;
+  if (!confirm(`'${st.name}' 학생을 종료 처리할까요?\n과거 가계부 입금 내역과 달력 기록은 보존되며, 메인 화면과 시간표, 향후 예상 입금에서만 제외됩니다.`)) return;
+  st.status = 'ended';
+  saveState();
+  closeModal('studentModal');
+  renderAll();
+};
+
+document.getElementById('btnSaveStudent').onclick = () => {
+  const id = document.getElementById('stIdInput').value;
+  const name = document.getElementById('stNameInput').value.trim();
+  if (!name) { alert('학생 이름을 입력해 주세요.'); return; }
+
+  const schedules = [];
+  document.querySelectorAll('#schedRowsContainer .sched-item').forEach(row => {
+    schedules.push({
+      dow: Number(row.querySelector('.sc-dow').value),
+      start: row.querySelector('.sc-start').value || '16:00',
+      end: row.querySelector('.sc-end').value || '18:00'
+    });
+  });
+
+  if (id) {
+    const st = state.students.find(s => s.id === id);
+    if (st) {
+      st.name = name;
+      st.hon = document.getElementById('stHonInput').value;
+      st.targetCount = Number(document.getElementById('stTargetInput').value) || 4;
+      st.fee = Number(document.getElementById('stFeeInput').value) || 0;
+      st.payType = document.getElementById('stPayTypeInput').value;
+      st.schedules = schedules;
+    }
+  } else {
+    state.students.push({
+      id: 'st_' + Date.now(),
+      name,
+      hon: document.getElementById('stHonInput').value,
+      targetCount: Number(document.getElementById('stTargetInput').value) || 4,
+      fee: Number(document.getElementById('stFeeInput').value) || 0,
+      payType: document.getElementById('stPayTypeInput').value,
+      status: 'active',
+      sentCheck: false,
+      schedules,
+      currentLogs: [],
+      archivedLogs: []
+    });
+  }
+  saveState();
+  closeModal('studentModal');
+  renderAll();
+};
+
+// ================= 2. 시간표 탭 렌더링 (보강 지정 시간 연동) =================
+let ttView = 'block';
+let ttMode = 'actual';
+let currentMonday = getMonday(new Date());
+
+function getMonday(d) {
+  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = dt.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  dt.setDate(dt.getDate() + diff);
+  return dt;
+}
+
+function fmtShortTime(tStr) {
+  if (!tStr) return '';
+  const [hh, mm] = tStr.split(':').map(Number);
+  return mm === 0 ? `${hh}시` : `${hh}:${pad(mm)}`;
+}
+
+function renderTimetableTab() {
+  const container = document.getElementById('timetableContainer');
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(currentMonday);
+    d.setDate(d.getDate() + i);
+    weekDates.push(d);
+  }
+  const firstD = weekDates[0], lastD = weekDates[6];
+  document.getElementById('ttWeekLabel').textContent =
+    `${firstD.getMonth() + 1}월 ${firstD.getDate()}일 ~ ${lastD.getMonth() + 1}월 ${lastD.getDate()}일`;
+
+  const dayEvents = [[], [], [], [], [], [], []];
+  const activeStudents = state.students.filter(s => s.status !== 'ended');
+
+  activeStudents.forEach(st => {
+    const allLogs = [...(st.currentLogs || []), ...(st.archivedLogs || [])];
+
+    (st.schedules || []).forEach(sc => {
+      const dayIdx = Number(sc.dow);
+      if (dayIdx < 0 || dayIdx > 6) return;
+      const iso = toIsoDate(weekDates[dayIdx]);
+
+      let canceledType = null;
+      if (ttMode === 'actual') {
+        const cancelLog = allLogs.find(
+          l => l.date === iso && (l.type === '휴강' || l.type === '결강')
+        );
+        if (cancelLog) canceledType = cancelLog.type;
+      }
+
+      dayEvents[dayIdx].push({
+        studentId: st.id,
+        studentName: st.name,
+        start: sc.start,
+        end: sc.end,
+        isMakeup: false,
+        canceledType
+      });
+    });
+
+    if (ttMode === 'actual') {
+      allLogs.filter(l => l.type === '보강').forEach(l => {
+        const idx = weekDates.findIndex(wd => toIsoDate(wd) === l.date);
+        if (idx >= 0) {
+          const mStart = l.start || st.schedules?.[0]?.start || '14:00';
+          const mEnd = l.end || st.schedules?.[0]?.end || '16:00';
+          dayEvents[idx].push({
+            studentId: st.id,
+            studentName: st.name,
+            start: mStart,
+            end: mEnd,
+            isMakeup: true,
+            canceledType: null
+          });
+        }
+      });
+    }
+  });
+
+  dayEvents.forEach(arr => arr.sort((a, b) => a.start.localeCompare(b.start)));
+
+  if (ttView === 'block') {
+    let html = `<div class="tt-block-board">`;
+    weekDates.forEach((d, idx) => {
+      const iso = toIsoDate(d);
+      const isToday = iso === todayIso;
+      const colClass = idx === 5 ? 'sat' : (idx === 6 ? 'sun' : '');
+      const pills = dayEvents[idx].map(ev => {
+        const cls = [
+          'tt-pill',
+          ev.isMakeup ? 'is-makeup' : '',
+          ev.canceledType ? 'is-canceled' : ''
+        ].join(' ');
+        const tag = ev.isMakeup ? ' (보강)' : (ev.canceledType ? ` (${ev.canceledType})` : '');
+        return `<div class="${cls}" style="cursor:pointer;" onclick="openStudentCalendar('${ev.studentId}')">${fmtShortTime(ev.start)} ${ev.studentName}${tag}</div>`;
+      }).join('');
+
+      html += `
+        <div class="tt-day-col ${colClass}">
+          <div class="tt-day-head">
+            <span class="dow">${DOW_NAMES[idx]}</span>
+            <span class="dnum ${isToday ? 'today' : ''}">${d.getDate()}</span>
+          </div>
+          ${pills}
+        </div>
+      `;
+    });
+    html += `</div>`;
+    container.innerHTML = html;
+  } else {
+    let hoursHtml = `<div class="tt-grid-time-head"></div>`;
+    for (let h = 8; h < 24; h++) {
+      hoursHtml += `<div class="tt-grid-hour">${h}</div>`;
+    }
+
+    let colsHtml = '';
+    weekDates.forEach((d, idx) => {
+      const evHtml = dayEvents[idx].map(ev => {
+        const [sh, sm] = ev.start.split(':').map(Number);
+        const [eh, em] = ev.end.split(':').map(Number);
+        const startMin = Math.max(0, (sh - 8) * 60 + sm);
+        const durMin = Math.max(30, (eh * 60 + em) - (sh * 60 + sm));
+        const topPx = (startMin / 60) * 44;
+        const heightPx = (durMin / 60) * 44;
+        const cls = [
+          'tt-grid-event',
+          ev.isMakeup ? 'is-makeup' : '',
+          ev.canceledType ? 'is-canceled' : ''
+        ].join(' ');
+        return `<div class="${cls}" style="top:${topPx}px; height:${heightPx}px; cursor:pointer;" onclick="openStudentCalendar('${ev.studentId}')">
+          <div>${ev.studentName}${ev.isMakeup ? '(보강)' : ''}</div>
+          <div style="font-weight:400; font-size:10px;">${ev.start}~${ev.end}</div>
+        </div>`;
+      }).join('');
+
+      colsHtml += `
+        <div class="tt-grid-day-col">
+          <div class="tt-grid-day-head">
+            <span>${DOW_NAMES[idx]} (${d.getDate()}일)</span>
+          </div>
+          <div class="tt-grid-body">${evHtml}</div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = `
+      <div class="tt-grid-board">
+        <div class="tt-grid-time-col">${hoursHtml}</div>
+        ${colsHtml}
+      </div>
+    `;
+  }
+}
+
+document.querySelectorAll('#ttViewToggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#ttViewToggle button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    ttView = btn.dataset.val;
+    renderTimetableTab();
+  };
+});
+document.querySelectorAll('#ttModeToggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#ttModeToggle button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    ttMode = btn.dataset.val;
+    renderTimetableTab();
+  };
+});
+document.getElementById('btnPrevWeek').onclick = () => {
+  currentMonday.setDate(currentMonday.getDate() - 7);
+  renderTimetableTab();
+};
+document.getElementById('btnNextWeek').onclick = () => {
+  currentMonday.setDate(currentMonday.getDate() + 7);
+  renderTimetableTab();
+};
+document.getElementById('btnThisWeek').onclick = () => {
+  currentMonday = getMonday(new Date());
+  renderTimetableTab();
+};
+
+// ================= 3. 가계부 탭 =================
+let finMonthDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let selectedFinDate = todayIso;
+let finView = 'calendar';
+
+function computeExpectedIncomes() {
+  const expected = [];
+  const activeStudents = state.students.filter(s => s.status !== 'ended');
+  const startSim = new Date();
+
+  activeStudents.forEach(st => {
+    const dows = (st.schedules || []).map(sc => Number(sc.dow));
+    if (!dows.length) return;
+    const target = Number(st.targetCount) || 4;
+    const cnt = getCountableLogs(st).length;
+    let needed = Math.max(1, target - cnt);
+
+    let cursor = new Date(startSim.getFullYear(), startSim.getMonth(), startSim.getDate());
+    let cycleAdded = 0;
+
+    for (let step = 0; step < 90 && cycleAdded < 2; step++) {
+      const jsDay = cursor.getDay();
+      const ourDow = (jsDay + 6) % 7;
+      if (dows.includes(ourDow)) {
+        const iso = toIsoDate(cursor);
+        // 미리 휴강 체크해 둔 날은 예상 회차 카운트에서 건너뛰기!
+        const isSkipped = (st.currentLogs || []).some(l => l.date === iso && l.type === '휴강');
+        if (!isSkipped) {
+          needed--;
+          if (needed <= 0) {
+            expected.push({
+              date: iso,
+              studentName: st.name,
+              amount: Number(st.fee) || 0
+            });
+            needed = target;
+            cycleAdded++;
+          }
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  });
+  return expected;
+}
+
+function renderFinanceTab() {
+  document.getElementById('baseBalanceInput').value = state.baseBalance || 0;
+  const y = finMonthDate.getFullYear();
+  const m = finMonthDate.getMonth();
+  const ymPrefix = `${y}-${pad(m + 1)}`;
+  document.getElementById('finMonthTitle').textContent = `${y}년 ${m + 1}월`;
+
+  const monthIncomes = state.incomes.filter(inc => inc.date.startsWith(ymPrefix));
+  const monthTotal = monthIncomes.reduce((acc, cur) => acc + (Number(cur.amount) || 0), 0);
+  document.getElementById('finMonthIncomeLabel').textContent = `${m + 1}월 확정 총수입 (${monthIncomes.length}건)`;
+  document.getElementById('finMonthIncomeVal').textContent = fmtMoney(monthTotal);
+
+  const expectedList = computeExpectedIncomes();
+
+  function getCumulativeBalanceUpTo(targetIso) {
+    let bal = Number(state.baseBalance) || 0;
+    state.incomes.forEach(inc => {
+      if (inc.date <= targetIso) bal += Number(inc.amount) || 0;
+    });
+    expectedList.forEach(exp => {
+      if (exp.date >= todayIso && exp.date <= targetIso) bal += Number(exp.amount) || 0;
+    });
+    state.expenses.forEach(out => {
+      if (out.date <= targetIso) bal -= Number(out.amount) || 0;
+    });
+    return bal;
+  }
+
+  const selBal = getCumulativeBalanceUpTo(selectedFinDate);
+  document.getElementById('finSelectedDateLabel').textContent = `${selectedFinDate} 기준 예상 누적 잔고`;
+  document.getElementById('finSelectedDateVal').textContent = fmtMoney(selBal);
+
+  const calGrid = document.getElementById('finCalDays');
+  calGrid.innerHTML = '';
+  const firstOffset = (new Date(y, m, 1).getDay() + 6) % 7;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+
+  for (let i = 0; i < firstOffset; i++) {
+    calGrid.appendChild(document.createElement('div'));
+  }
+
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = `${y}-${pad(m + 1)}-${pad(d)}`;
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (iso === selectedFinDate ? ' selected' : '') + (iso === todayIso ? ' today' : '');
+
+    const dayIncs = state.incomes.filter(x => x.date === iso);
+    const dayExps = expectedList.filter(x => x.date === iso);
+    const dayOuts = state.expenses.filter(x => x.date === iso);
+
+    let tagsHtml = '';
+    dayIncs.forEach(x => {
+      tagsHtml += `<div class="cal-tag inc">+${(x.amount / 10000).toFixed(0)}만 ${x.studentName}</div>`;
+    });
+    dayExps.forEach(x => {
+      tagsHtml += `<div class="cal-tag exp-in">(예상)+${(x.amount / 10000).toFixed(0)}만 ${x.studentName}</div>`;
+    });
+    dayOuts.forEach(x => {
+      tagsHtml += `<div class="cal-tag out">-${(x.amount / 10000).toFixed(0)}만 ${x.title}</div>`;
+    });
+
+    cell.innerHTML = `<span class="d-num">${d}</span>${tagsHtml}`;
+    cell.onclick = () => {
+      selectedFinDate = iso;
+      renderFinanceTab();
+    };
+    calGrid.appendChild(cell);
+  }
+
+  document.getElementById('selDateBriefTitle').textContent = `📌 ${selectedFinDate} 자금 흐름 브리핑`;
+  const bIncs = state.incomes.filter(x => x.date === selectedFinDate);
+  const bExps = expectedList.filter(x => x.date === selectedFinDate);
+  const bOuts = state.expenses.filter(x => x.date === selectedFinDate);
+
+  let briefHtml = `<div style="margin-bottom:8px;">이 날짜까지의 예상 통장 누적 잔고: <b style="color:var(--acc); font-size:15px;">${fmtMoney(selBal)}</b></div>`;
+  if (!bIncs.length && !bExps.length && !bOuts.length) {
+    briefHtml += `<div style="color:var(--mute);">해당 날짜에 등록된 입출금 내역이 없습니다.</div>`;
+  } else {
+    bIncs.forEach(x => {
+      briefHtml += `<div>✔️ [확정 입금] ${x.studentName}: +${fmtMoney(x.amount)} <button type="button" class="icon-btn" style="padding:1px 6px; font-size:11px;" onclick="deleteIncome('${x.id}')">삭제</button></div>`;
+    });
+    bExps.forEach(x => {
+      briefHtml += `<div>🗓️ [예상 입금(정규 회차 완료일)] ${x.studentName}: +${fmtMoney(x.amount)}</div>`;
+    });
+    bOuts.forEach(x => {
+      briefHtml += `<div>💳 [지출/차감] ${x.title}: -${fmtMoney(x.amount)} <button type="button" class="icon-btn" style="padding:1px 6px; font-size:11px;" onclick="deleteExpense('${x.id}')">삭제</button></div>`;
+    });
+  }
+  document.getElementById('selDateBriefBody').innerHTML = briefHtml;
+
+  const listWrap = document.getElementById('finIncomeListContainer');
+  if (!monthIncomes.length) {
+    listWrap.innerHTML = `<div style="color:var(--mute); text-align:center; padding:20px;">${m + 1}월에 확정된 입금 내역이 없습니다.</div>`;
+  } else {
+    listWrap.innerHTML = monthIncomes
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .map(inc => `
+        <div class="settle-queue-item">
+          <div><b>${inc.date}</b> · ${inc.studentName} 학생 교육비</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <b style="color:var(--acc);">+${fmtMoney(inc.amount)}</b>
+            <button type="button" class="icon-btn" onclick="deleteIncome('${inc.id}')">삭제</button>
+          </div>
+        </div>
+      `).join('');
+  }
+}
+
+document.getElementById('btnSaveBaseBal').onclick = () => {
+  state.baseBalance = Number(document.getElementById('baseBalanceInput').value) || 0;
+  saveState();
+  renderFinanceTab();
+  alert('기초 시작 잔고가 저장되었습니다.');
+};
+
+document.getElementById('btnAddExpense').onclick = () => {
+  const title = prompt(`[${selectedFinDate}] 차감할 항목 이름(예: 카드값)을 입력해 주세요:`, '카드값');
+  if (!title) return;
+  const amtStr = prompt(`'${title}' 차감 금액(원)을 숫자로 입력해 주세요 (예: 450000):`, '450000');
+  if (!amtStr) return;
+  const amount = Number(amtStr.replace(/,/g, ''));
+  if (isNaN(amount) || amount <= 0) { alert('올바른 금액을 입력해 주세요.'); return; }
+
+  state.expenses.push({
+    id: 'exp_' + Date.now(),
+    date: selectedFinDate,
+    title: title.trim(),
+    amount
+  });
+  saveState();
+  renderFinanceTab();
+};
+
+window.deleteIncome = function(id) {
+  if (!confirm('이 입금 기록을 삭제할까요?')) return;
+  state.incomes = state.incomes.filter(x => x.id !== id);
+  saveState();
+  renderFinanceTab();
+};
+window.deleteExpense = function(id) {
+  state.expenses = state.expenses.filter(x => x.id !== id);
+  saveState();
+  renderFinanceTab();
+};
+
+document.querySelectorAll('#finViewToggle button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#finViewToggle button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    finView = btn.dataset.val;
+    document.getElementById('finCalendarView').style.display = finView === 'calendar' ? 'block' : 'none';
+    document.getElementById('finListView').style.display = finView === 'list' ? 'block' : 'none';
+  };
+});
+document.getElementById('btnFinPrevMonth').onclick = () => {
+  finMonthDate = new Date(finMonthDate.getFullYear(), finMonthDate.getMonth() - 1, 1);
+  renderFinanceTab();
+};
+document.getElementById('btnFinNextMonth').onclick = () => {
+  finMonthDate = new Date(finMonthDate.getFullYear(), finMonthDate.getMonth() + 1, 1);
+  renderFinanceTab();
+};
+
+// ================= 4. 4주 결산 탭 =================
+let pCalMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+function updateSettlementBadge() {
+  const readyStudents = state.students.filter(
+    s => s.status !== 'ended' && getCountableLogs(s).length >= (Number(s.targetCount) || 4)
+  );
+  const badge = document.getElementById('settleBadge');
+  if (readyStudents.length > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = readyStudents.length;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function renderSettlementTab() {
+  const qList = document.getElementById('settlementQueueList');
+  const readyStudents = state.students.filter(
+    s => s.status !== 'ended' && getCountableLogs(s).length >= (Number(s.targetCount) || 4)
+  );
+
+  if (!readyStudents.length) {
+    qList.innerHTML = `<div style="font-size:13px; color:var(--mute);">현재 목표 회차가 모두 찬 학생이 없습니다. (메인 탭에서 회차가 채워지면 이곳에 자동으로 나타납니다)</div>`;
+  } else {
+    qList.innerHTML = readyStudents.map(st => {
+      const counted = getCountableLogs(st);
+      const target = Number(st.targetCount) || 4;
+      return `
+        <div class="settle-queue-item ${st.sentCheck ? 'sent' : ''}">
+          <label class="sq-left" style="cursor:pointer;">
+            <input type="checkbox" ${st.sentCheck ? 'checked' : ''} onchange="toggleSentCheck('${st.id}', this.checked)">
+            <span class="sq-info">
+              <b>${st.name}</b> (${counted.length}/${target}회 완료 · ${st.payType})
+            </span>
+          </label>
+          <button type="button" class="btn-primary" onclick="loadStudentIntoPrompt('${st.id}')">프롬프트에 불러오기</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  renderPromptGenerator();
+}
+
+window.toggleSentCheck = function(stId, checked) {
+  const st = state.students.find(s => s.id === stId);
+  if (st) {
+    st.sentCheck = checked;
+    saveState();
+    renderSettlementTab();
+  }
+};
+
+window.loadStudentIntoPrompt = function(stId) {
+  const st = state.students.find(s => s.id === stId);
+  if (!st) return;
+  const target = Number(st.targetCount) || 4;
+  const countedDates = getCountableLogs(st)
+    .map(l => l.date)
+    .sort()
+    .slice(0, target);
+
+  state.promptDraft.name = st.name;
+  state.promptDraft.hon = st.hon || '어머님';
+  state.promptDraft.paid = st.payType || '미납';
+  state.promptDraft.dates = countedDates;
+
+  if (countedDates.length) {
+    const [y, m] = countedDates[countedDates.length - 1].split('-').map(Number);
+    pCalMonth = new Date(y, m - 1, 1);
+  }
+  saveState();
+  renderPromptGenerator();
+};
+
+const attachGa = n => {
+  const c = n.slice(-1).charCodeAt(0);
+  return n + ((c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0) ? '이가' : '가');
+};
+function fmtPromptDates(ds) {
+  let pm = -1;
+  return ds.map(d => {
+    const [, m, dd] = d.split('-').map(Number);
+    const s = (m !== pm ? m + '월 ' : '') + dd + '일';
+    pm = m;
+    return s;
+  }).join(', ');
+}
+
+function buildPromptText() {
+  const d = state.promptDraft;
+  const n = d.dates.length;
+  const name = (d.name || '').trim();
+  const head = `안녕하세요, ${d.hon}. ${name ? attachGa(name) : '[학생 이름]'} ${n ? fmtPromptDates(d.dates) : '[날짜]'} 수업으로 ${n || '[n]'}회 수업이 마무리되었습니다.`;
+  const tail = d.paid === '선납'
+    ? `이번 달 교육비는 이미 보내 주셔서 별도로 수업 전까지 신경 쓰실 부분은 없습니다. 편안하신 ${d.tod} 되세요. ^^`
+    : `이번 달 교육비 역시 동일 계좌로 1회차 수업 시작 전까지만 보내 주시면 되며, 주말을 기준으로 ${n || '[n]'}회차가 마무리된 학생들에게 일괄 피드백과 함께 발송드리는 연락이니 다른 염려는 하지 않으셔도 됩니다. 편안하신 ${d.tod} 되세요. ^^`;
+
+  return [
+    "당신은 과외 선생님이 학부모께 보내는 결산 메시지의 초안을 쓰는 보조자입니다. 아래 [메시지 틀]의 {피드백} 자리에 들어갈 피드백 본문 한 단락을 써서, 완성된 메시지 전체를 출력하세요.",
+    "",
+    "[작성 조건]",
+    "- {피드백} 외의 문장은 한 글자도 바꾸지 말고 틀 그대로 출력하세요. '✔️ '는 피드백 본문 앞에 그대로 둡니다.",
+    `- 피드백 문체는 정중한 문자 문체(~습니다/~합니다)이며, 학생은 '${name || '[학생 이름]'}'으로 지칭합니다.`,
+    "- 구성: (1) 현재 학습 상황과 진단 → (2) 수업에서 한 지도 → (3) 앞으로의 계획 또는 가정에서 필요한 점 → (4) 필요하면 학부모께 독려·협조를 부탁드리는 마무리. 각 요소는 아래 메모에 근거가 있을 때만 쓰세요.",
+    "- 분량은 공백 포함 250~450자, 줄바꿈 없는 한 단락입니다.",
+    "- 메모에 없는 사실(점수, 진도, 학생의 말이나 태도)은 지어내지 마세요. 정보가 부족해 쓰기 어려운 부분은 [확인 필요]로 표시하세요.",
+    "- 막연한 칭찬이나 격려는 피하고 구체적인 학습 내용 중심으로 쓰세요. 이모지(✔️ 제외)와 마크다운은 쓰지 마세요.",
+    "",
+    "[메시지 틀]", head, "", "✔️ {피드백}", "", tail, "",
+    "[피드백 메모]", (d.memo || '').trim() || '(메모 없음)', "",
+    "[문체 참고 예시: 선생님이 실제로 보낸 피드백 (학생 이름은 ○○로 가림)]",
+    ...state.samples.flatMap((e, i) => [`예시 ${i + 1}: ${e}`, ""]),
+    "예시의 내용을 베끼지 말고 문체와 구성만 참고하세요."
+  ].join('\n');
+}
+
+function renderSegButtons(containerId, key, options) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  options.forEach(opt => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = opt;
+    if (state.promptDraft[key] === opt) b.classList.add('on');
+    b.onclick = () => {
+      state.promptDraft[key] = opt;
+      saveState();
+      renderPromptGenerator();
+    };
+    el.appendChild(b);
+  });
+}
+
+function renderPromptGenerator() {
+  const d = state.promptDraft;
+  document.getElementById('pName').value = d.name || '';
+  document.getElementById('pMemo').value = d.memo || '';
+
+  renderSegButtons('pHonSeg', 'hon', ['어머님', '아버님']);
+  renderSegButtons('pPaidSeg', 'paid', ['선납', '미납']);
+  renderSegButtons('pTodSeg', 'tod', ['하루', '저녁', '밤']);
+
+  const y = pCalMonth.getFullYear(), m = pCalMonth.getMonth();
+  document.getElementById('pCalTitle').textContent = `${y}년 ${m + 1}월`;
+  const grid = document.getElementById('pCalDays');
+  grid.innerHTML = '';
+  const off = (new Date(y, m, 1).getDay() + 6) % 7;
+  const last = new Date(y, m + 1, 0).getDate();
+  for (let i = 0; i < off; i++) grid.appendChild(document.createElement('span'));
+  for (let day = 1; day <= last; day++) {
+    const iso = `${y}-${pad(m + 1)}-${pad(day)}`;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = day;
+    if (d.dates.includes(iso)) b.classList.add('on');
+    if (iso === todayIso) b.classList.add('today');
+    b.onclick = () => {
+      const idx = d.dates.indexOf(iso);
+      idx < 0 ? d.dates.push(iso) : d.dates.splice(idx, 1);
+      d.dates.sort();
+      saveState();
+      renderPromptGenerator();
+    };
+    grid.appendChild(b);
+  }
+
+  const chips = document.getElementById('pDateChips');
+  if (!d.dates.length) {
+    chips.innerHTML = `<span style="font-size:12px; color:var(--mute);">선택한 날짜가 여기에 표시됩니다</span>`;
+  } else {
+    chips.innerHTML = d.dates.map(iso => {
+      const [, mm, dd] = iso.split('-').map(Number);
+      return `<button type="button" class="date-chip" onclick="removePromptDate('${iso}')">${mm}월 ${dd}일 ×</button>`;
+    }).join('');
+  }
+
+  document.getElementById('pOut').value = buildPromptText();
+  const ok = (d.name || '').trim() && d.dates.length > 0;
+  document.getElementById('btnCopyPrompt').disabled = !ok;
+  document.getElementById('pHint').textContent = ok
+    ? ((d.memo || '').trim() ? '' : '메모가 비어 있습니다. 메모를 적으면 훨씬 자연스러운 피드백이 생성됩니다.')
+    : '학생 이름과 수업 날짜를 선택하면 복사할 수 있습니다.';
+}
+
+window.removePromptDate = function(iso) {
+  state.promptDraft.dates = state.promptDraft.dates.filter(x => x !== iso);
+  saveState();
+  renderPromptGenerator();
+};
+
+document.getElementById('pName').oninput = e => {
+  state.promptDraft.name = e.target.value;
+  saveState();
+  document.getElementById('pOut').value = buildPromptText();
+};
+document.getElementById('pMemo').oninput = e => {
+  state.promptDraft.memo = e.target.value;
+  saveState();
+  document.getElementById('pOut').value = buildPromptText();
+};
+document.getElementById('pCalPrev').onclick = () => {
+  pCalMonth = new Date(pCalMonth.getFullYear(), pCalMonth.getMonth() - 1, 1);
+  renderPromptGenerator();
+};
+document.getElementById('pCalNext').onclick = () => {
+  pCalMonth = new Date(pCalMonth.getFullYear(), pCalMonth.getMonth() + 1, 1);
+  renderPromptGenerator();
+};
+document.getElementById('btnResetPrompt').onclick = () => {
+  state.promptDraft.name = '';
+  state.promptDraft.dates = [];
+  state.promptDraft.memo = '';
+  saveState();
+  renderPromptGenerator();
+};
+document.getElementById('btnCopyPrompt').onclick = async () => {
+  const txt = document.getElementById('pOut').value;
+  try { await navigator.clipboard.writeText(txt); } catch (e) {}
+  const btn = document.getElementById('btnCopyPrompt');
+  btn.textContent = '복사됨!';
+  setTimeout(() => btn.textContent = '복사', 1500);
+};
+
+// 예시 문구 관리 모달
+document.getElementById('btnManageSamples').onclick = () => {
+  const wrap = document.getElementById('sampleListContainer');
+  wrap.innerHTML = '';
+  state.samples.forEach((s, idx) => {
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+        <b style="font-size:12px;">예시 ${idx + 1}</b>
+        <button type="button" class="icon-btn" style="padding:2px 6px; font-size:11px;" onclick="this.parentElement.parentElement.remove()">삭제</button>
+      </div>
+      <textarea class="sample-txt" rows="3">${s}</textarea>
+    `;
+    wrap.appendChild(div);
+  });
+  document.getElementById('sampleModal').classList.add('open');
+};
+document.getElementById('btnAddSample').onclick = () => {
+  const wrap = document.getElementById('sampleListContainer');
+  const div = document.createElement('div');
+  div.innerHTML = `
+    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+      <b style="font-size:12px;">새 예시</b>
+      <button type="button" class="icon-btn" style="padding:2px 6px; font-size:11px;" onclick="this.parentElement.parentElement.remove()">삭제</button>
+    </div>
+    <textarea class="sample-txt" rows="3" placeholder="○○는 ~"></textarea>
+  `;
+  wrap.appendChild(div);
+};
+document.getElementById('btnSaveSamples').onclick = () => {
+  const arr = [];
+  document.querySelectorAll('#sampleListContainer .sample-txt').forEach(t => {
+    if (t.value.trim()) arr.push(t.value.trim());
+  });
+  state.samples = arr;
+  saveState();
+  closeModal('sampleModal');
+  renderPromptGenerator();
+};
+
+// ================= 설정 & 구글 스프레드시트 연동 =================
+document.getElementById('btnOpenSettings').onclick = () => {
+  document.getElementById('setAppTitleInput').value = state.settings.appTitle || '과외 매니저';
+  document.getElementById('setThemeSelect').value = state.settings.theme || 'auto';
+  document.getElementById('setGasUrlInput').value = state.settings.gasUrl || '';
+  document.getElementById('settingsModal').classList.add('open');
+};
+
+document.getElementById('btnSaveSettings').onclick = () => {
+  state.settings.appTitle = document.getElementById('setAppTitleInput').value.trim() || '과외 매니저';
+  state.settings.theme = document.getElementById('setThemeSelect').value;
+  state.settings.gasUrl = document.getElementById('setGasUrlInput').value.trim();
+  applyThemeAndTitle();
+  saveState();
+  alert('설정이 저장되었습니다.');
+};
+
+document.getElementById('btnCopyGasCode').onclick = async () => {
+  const code = document.getElementById('gasCodeBlock').textContent;
+  try { await navigator.clipboard.writeText(code); alert('Apps Script 코드가 복사되었습니다.'); } catch (e) {}
+};
+
+async function pushToCloud(silent = false) {
+  const url = state.settings.gasUrl;
+  if (!url) { if (!silent) alert('구글 Apps Script 웹 앱 URL을 먼저 입력해 주세요.'); return; }
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot busy';
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(state)
+    });
+    dot.className = 'sync-dot ok';
+    if (!silent) alert('구글 스프레드시트로 백업 전송을 완료했습니다.');
+  } catch (e) {
+    if (!silent) alert('전송 중 오류가 발생했습니다: ' + e.message);
+  }
+}
+
+document.getElementById('btnCloudPush').onclick = () => pushToCloud(false);
+document.getElementById('btnCloudPull').onclick = async () => {
+  const url = state.settings.gasUrl;
+  if (!url) { alert('구글 Apps Script 웹 앱 URL을 먼저 입력해 주세요.'); return; }
+  if (!confirm('구글 스프레드시트에 저장된 데이터로 현재 화면을 덮어쓸까요?')) return;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.students) {
+      state = Object.assign(state, data);
+      saveState(true);
+      applyThemeAndTitle();
+      renderAll();
+      alert('구글 스프레드시트에서 데이터를 성공적으로 불러왔습니다!');
+    }
+  } catch (e) {
+    alert('불러오기 실패: URL 권한(모든 사용자) 또는 저장된 데이터 여부를 확인해 주세요.');
+  }
+};
+
+document.getElementById('btnExportJson').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `과외매니저_백업_${todayIso}.json`;
+  a.click();
+};
+document.getElementById('inputImportJson').onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const parsed = JSON.parse(ev.target.result);
+      if (parsed && Array.isArray(parsed.students)) {
+        state = Object.assign(state, parsed);
+        saveState(true);
+        applyThemeAndTitle();
+        renderAll();
+        alert('백업 파일 복원이 완료되었습니다!');
+      }
+    } catch (err) {
+      alert('올바른 백업 파일이 아닙니다.');
+    }
+  };
+  reader.readAsText(file);
+};
+
+window.closeModal = function(id) {
+  document.getElementById(id).classList.remove('open');
+};
+
+document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    const target = btn.dataset.tab;
+    document.getElementById('tab-' + target).classList.add('active');
+    renderAll();
+  };
+});
+
+function renderAll() {
+  renderMainTab();
+  renderTimetableTab();
+  renderFinanceTab();
+  renderSettlementTab();
+}
+
+applyThemeAndTitle();
+renderAll();
+</script>
+</body>
+</html>
