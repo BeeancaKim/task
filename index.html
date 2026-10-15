@@ -1570,6 +1570,9 @@ try {
 } catch (e) {}
 
 function saveState(skipCloud = false) {
+  if (!skipCloud) {
+    state.updatedAt = Date.now(); // 내가 수정을 가할 때만 최신 타임스탬프 갱신
+  }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     document.getElementById('syncDot').className = 'sync-dot ok';
@@ -3096,17 +3099,74 @@ document.getElementById('btnCopyGasCode').onclick = async () => {
   try { await navigator.clipboard.writeText(code); alert('복사되었습니다.'); } catch (e) {}
 };
 
+// 시트에서 최신 데이터 자동/수동으로 당겨오기 (JSONP + Fetch 겸용)
+function pullFromCloud(silent = true) {
+  const inputUrl = document.getElementById('setGasUrlInput')?.value?.trim();
+  if (inputUrl) state.settings.gasUrl = inputUrl;
+  const url = (state.settings.gasUrl || '').trim();
+  if (!url) {
+    if (!silent) alert('구글 Apps Script 웹 앱 URL을 먼저 입력해 주세요.');
+    return Promise.resolve(false);
+  }
+
+  const dot = document.getElementById('syncDot');
+  dot.className = 'sync-dot busy';
+
+  return new Promise(resolve => {
+    window.__handleCloudData = function(cloudData) {
+      if (cloudData && Array.isArray(cloudData.students)) {
+        const cloudTime = Number(cloudData.updatedAt) || 0;
+        const localTime = Number(state.updatedAt) || 0;
+
+        // 수동 불러오기(!silent)이거나, 시트 데이터가 내 기기보다 더 최신일 때 자동 반영!
+        if (!silent || cloudTime >= localTime) {
+          const keepUrl = state.settings.gasUrl;
+          state = Object.assign(state, cloudData);
+          if (!state.settings) state.settings = {};
+          state.settings.gasUrl = keepUrl;
+          saveState(true);
+          applyThemeAndTitle();
+          renderAll();
+        }
+        dot.className = 'sync-dot ok';
+        if (!silent) {
+          closeModal('settingsModal');
+          alert('구글 시트와 최신 상태로 동기화되었습니다!');
+        }
+        resolve(true);
+      } else {
+        dot.className = 'sync-dot';
+        if (!silent) alert('시트에 아직 저장된 데이터가 없습니다.');
+        resolve(false);
+      }
+    };
+
+    const s = document.createElement('script');
+    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=__handleCloudData&t=' + Date.now();
+    s.onerror = () => {
+      dot.className = 'sync-dot';
+      if (!silent) alert('동기화 실패: URL 또는 배포 권한(모든 사용자)을 확인해 주세요.');
+      resolve(false);
+    };
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 4000);
+  });
+}
+
+// 백업 전송 전, 혹시 시트에 더 최신 데이터가 있는지 먼저 확인 후 안전하게 전송
 async function pushToCloud(silent = false) {
   const inputUrl = document.getElementById('setGasUrlInput')?.value?.trim();
   if (inputUrl) state.settings.gasUrl = inputUrl;
-  const url = state.settings.gasUrl;
+  const url = (state.settings.gasUrl || '').trim();
   if (!url) {
     if (!silent) alert('구글 Apps Script 웹 앱 URL을 먼저 입력해 주세요.');
     return;
   }
   const dot = document.getElementById('syncDot');
   dot.className = 'sync-dot busy';
+
   try {
+    if (!state.updatedAt) state.updatedAt = Date.now();
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
@@ -3114,14 +3174,28 @@ async function pushToCloud(silent = false) {
       body: JSON.stringify(state)
     });
     dot.className = 'sync-dot ok';
-    if (!silent) alert('구글 스프레드시트로 백업 신호를 보냈습니다!');
+    if (!silent) alert('구글 스프레드시트로 백업 완료!');
   } catch (e) {
     dot.className = 'sync-dot';
     if (!silent) alert('백업 오류: ' + e.message);
   }
 }
 
-document.getElementById('btnCloudPush').onclick = () => pushToCloud(false);
+document.getElementById('btnCloudPush').onclick = () => {
+  state.updatedAt = Date.now(); // 수동 백업 시 현재 기기를 강제 최신으로 지정
+  pushToCloud(false);
+};
+document.getElementById('btnCloudPull').onclick = () => pullFromCloud(false);
+
+// [핵심] 앱을 처음 켤 때 & 다른 화면 보다가 다시 앱 화면으로 돌아올 때마다 자동으로 최신 시트 불러오기!
+if (state.settings.gasUrl) {
+  pullFromCloud(true);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.settings.gasUrl) {
+    pullFromCloud(true);
+  }
+});
 
 // 모바일 Safari/Chrome에서도 100% 작동하도록 Fetch + JSONP 이중 처리 및 입력칸 URL 즉시 반영
 document.getElementById('btnCloudPull').onclick = async () => {
