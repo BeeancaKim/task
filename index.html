@@ -2538,6 +2538,7 @@ let finMonthDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedFinDate = todayIso;
 let finView = 'calendar';
 
+// [가계부 탭] 예상 입금일 계산: 4주차 마지막 수업일이 아닌 '그다음 주기 1회차 수업일'로 산출
 function computeExpectedIncomes() {
   const expected = [];
   const activeStudents = state.students.filter(s => s.status !== 'ended');
@@ -2547,9 +2548,25 @@ function computeExpectedIncomes() {
     const dows = (st.schedules || []).map(sc => Number(sc.dow));
     if (!dows.length) return;
     const status = getStudentCycleStatus(st);
-    let needed = Math.max(1, status.effTarget - status.cnt);
+
+    // 1) 만약 선납 학생인데 최초 미납 대기 상태(아직 첫 교육비도 안 낸 상태)라면:
+    //    가장 가까운 첫 수업일(1회차 날)이 곧 첫 예상 입금일이 됨.
+    // 2) 현재 수업을 진행 중인 학생이라면:
+    //    [남은 회차(effTarget - cnt)를 모두 채운 뒤 돌아오는 '다음 주기 1회차 수업일(+1)']이 예상 입금일이 됨!
+    const recordedToday = (st.currentLogs || []).some(
+      l => l.date === todayIso && (l.type === '정규' || l.type === '보강' || l.type === '결강')
+    );
+
+    let classesUntilPay = status.needPrepay
+      ? 1
+      : Math.max(0, status.effTarget - status.cnt) + 1;
 
     let cursor = new Date(startSim.getFullYear(), startSim.getMonth(), startSim.getDate());
+    // 오늘 수업을 이미 체크했다면 내일부터 다음 정규 수업일을 탐색
+    if (recordedToday) {
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
     let cycleAdded = 0;
 
     for (let step = 0; step < 90 && cycleAdded < 2; step++) {
@@ -2558,14 +2575,15 @@ function computeExpectedIncomes() {
         const iso = toIsoDate(cursor);
         const isSkipped = (st.currentLogs || []).some(l => l.date === iso && l.type === '휴강');
         if (!isSkipped) {
-          needed--;
-          if (needed <= 0) {
+          classesUntilPay--;
+          if (classesUntilPay <= 0) {
             expected.push({
               date: iso,
               studentName: st.name,
               amount: Number(st.fee) || 0
             });
-            needed = status.base;
+            // 그다음 주기의 1회차 날은 다시 기준 회차(예: 4회) 뒤의 첫 수업일
+            classesUntilPay = status.base;
             cycleAdded++;
           }
         }
