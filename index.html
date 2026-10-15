@@ -1659,13 +1659,19 @@ function getActiveScheduleForStudent(st) {
   if (!scheds.length) return null;
   if (scheds.length === 1) return scheds[0];
 
+  // [핵심 수정] 오늘이 정규 수업 요일 중 하나라면, 방금 결강/정규를 눌렀더라도 다른 요일로 이동시키지 않고 오늘 요일에 그대로 고정!
+  const todayMatched = scheds.filter(sc => Number(sc.dow) === todayDow).sort((a, b) => a.start.localeCompare(b.start));
+  if (todayMatched.length) {
+    return todayMatched[0];
+  }
+
   const existingDates = new Set([
     ...(st.currentLogs || []).map(l => l.date),
     ...(st.archivedLogs || []).map(l => l.date)
   ]);
 
   const now = new Date();
-  for (let offset = 0; offset < 7; offset++) {
+  for (let offset = 1; offset <= 7; offset++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
     const dow = (d.getDay() + 6) % 7;
     const matched = scheds.filter(sc => Number(sc.dow) === dow).sort((a, b) => a.start.localeCompare(b.start));
@@ -1673,11 +1679,6 @@ function getActiveScheduleForStudent(st) {
       const iso = toIsoDate(d);
       if (!existingDates.has(iso)) return matched[0];
     }
-  }
-  for (let offset = 1; offset <= 7; offset++) {
-    const dow = (todayDow + offset) % 7;
-    const matched = scheds.filter(sc => Number(sc.dow) === dow).sort((a, b) => a.start.localeCompare(b.start));
-    if (matched.length) return matched[0];
   }
   return scheds[0];
 }
