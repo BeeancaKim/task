@@ -442,6 +442,8 @@ main {
   font-weight: 700;
   padding: 9px;
 }
+.act-btn.done-today { background: var(--acc); border-color: var(--acc); color: var(--on); font-weight: 700; }
+.act-btn.absent-today { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); font-weight: 700; }
 
 /* 2. 시간표 탭 (08:00 ~ 익일 01:00 총 17시간) */
 .tt-controls {
@@ -1784,13 +1786,20 @@ function buildStudentCardEl(st, activeSc = null) {
         ? `<span class="badge">선납 +${extraCycles * base}회</span>`
         : `<span class="badge mute">${st.payType}</span>`);
 
+  // [추가] 오늘 날짜(todayIso)로 이미 기록된 수업이 있는지 확인 (자동 이월된 기록까지 포함)
+  const todayLog = [...(st.currentLogs || []), ...(st.archivedLogs || [])].find(
+    l => l.date === todayIso && (l.type === '정규' || l.type === '결강' || l.type === '보강' || l.type === '휴강')
+  );
+  const isRegDone = todayLog && (todayLog.type === '정규' || todayLog.type === '보강');
+  const isAbsDone = todayLog && todayLog.type === '결강';
+
   const btnsHtml = needPrepay
     ? `<div class="act-btns-3">
          <button type="button" class="act-btn prepay-start" onclick="event.stopPropagation(); openPayModal('${st.id}')">교육비 납부 (회차 시작)</button>
        </div>`
     : `<div class="act-btns-3">
-         <button type="button" class="act-btn" onclick="event.stopPropagation(); quickAddRegularLog('${st.id}','정규', ${scDow})">정규</button>
-         <button type="button" class="act-btn" onclick="event.stopPropagation(); quickAddRegularLog('${st.id}','결강', ${scDow})">결강</button>
+         <button type="button" class="act-btn ${isRegDone ? 'done-today' : ''}" onclick="event.stopPropagation(); quickAddRegularLog('${st.id}','정규', ${scDow})">${isRegDone ? '✓ 정규 완료' : '정규'}</button>
+         <button type="button" class="act-btn ${isAbsDone ? 'absent-today' : ''}" onclick="event.stopPropagation(); quickAddRegularLog('${st.id}','결강', ${scDow})">${isAbsDone ? '✓ 결강 완료' : '결강'}</button>
          <button type="button" class="act-btn primary-pay" onclick="event.stopPropagation(); openPayModal('${st.id}')">교육비</button>
        </div>`;
 
@@ -1906,6 +1915,46 @@ function renderMainTab() {
 window.quickAddRegularLog = function(stId, type, preferDow = null) {
   const st = state.students.find(s => s.id === stId);
   if (!st) return;
+
+  // 1) 오늘 날짜(todayIso)로 이미 찍힌 기록이 있는지 먼저 확인
+  const curIdx = (st.currentLogs || []).findIndex(
+    l => l.date === todayIso && (l.type === '정규' || l.type === '결강')
+  );
+
+  if (curIdx >= 0) {
+    // 같은 버튼을 한 번 더 누르면 -> 즉시 취소(삭제)
+    if (st.currentLogs[curIdx].type === type) {
+      st.currentLogs.splice(curIdx, 1);
+    } else {
+      // 다른 버튼을 누르면 -> 즉시 변경 (예: 정규 -> 결강)
+      st.currentLogs[curIdx].type = type;
+    }
+    saveState();
+    renderAll();
+    return;
+  }
+
+  // (선납 학생이 오늘 4회차를 채워 archivedLogs로 자동 이월된 직후 다시 눌러 취소하려는 경우까지 대비)
+  const archIdx = (st.archivedLogs || []).findIndex(
+    l => l.date === todayIso && (l.type === '정규' || l.type === '결강')
+  );
+  if (archIdx >= 0) {
+    if (st.archivedLogs[archIdx].type === type) {
+      const base = Math.max(1, Number(st.targetCount) || 4);
+      // 방금 이월된 묶음을 다시 현재 주기로 되돌리고 오늘 기록 취소
+      const restored = st.archivedLogs.splice(-base);
+      const filtered = restored.filter(l => !(l.date === todayIso && l.type === type));
+      st.currentLogs.push(...filtered);
+      st.prepaidSettleDates = null;
+    } else {
+      st.archivedLogs[archIdx].type = type;
+    }
+    saveState();
+    renderAll();
+    return;
+  }
+
+  // 2) 오늘 기록이 아직 없다면 -> 기존처럼 정규 수업일 계산하여 추가
   const targetDate = getSmartRegularDate(st, preferDow);
   st.currentLogs.push({
     id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
