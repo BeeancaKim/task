@@ -285,22 +285,6 @@ main {
   font-weight: 700;
 }
 
-  /* 메인 카드: 휴강 시 회색/흐림 처리 */
-.st-card.is-skip-day {
-  opacity: 0.52;
-  background: var(--field-sub);
-  border-style: dashed;
-}
-.st-card.is-skip-day .st-name {
-  text-decoration: line-through;
-  color: var(--mute);
-}
-/* 시간표(변동 반영): 지나간 수업(또는 완료된 수업) 취소선 없이 흐리게 */
-.tt-pill.is-past, .tt-grid-event.is-past {
-  opacity: 0.42;
-  filter: grayscale(25%);
-}
-
 /* 1. 메인 탭 & 하단 탭 위 원형 플로팅(+) 버튼 */
 .student-toolbar {
   display: flex;
@@ -365,6 +349,16 @@ main {
 .st-card.need-prepay {
   border-color: var(--warn);
   border-style: dashed;
+}
+/* 메인 카드: 휴강 시 회색/흐림 처리 */
+.st-card.is-skip-day {
+  opacity: 0.55;
+  background: var(--field-sub);
+  border-style: dashed;
+}
+.st-card.is-skip-day .st-name {
+  text-decoration: line-through;
+  color: var(--mute);
 }
 .st-head {
   display: flex;
@@ -450,6 +444,18 @@ main {
   color: var(--acc);
   font-weight: 700;
 }
+.act-btn.done-today {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--on);
+  font-weight: 700;
+}
+.act-btn.absent-today {
+  background: var(--warn-bg);
+  border-color: var(--warn);
+  color: var(--warn);
+  font-weight: 700;
+}
 .act-btn.prepay-start {
   grid-column: 1 / -1;
   background: var(--acc);
@@ -458,8 +464,6 @@ main {
   font-weight: 700;
   padding: 9px;
 }
-.act-btn.done-today { background: var(--acc); border-color: var(--acc); color: var(--on); font-weight: 700; }
-.act-btn.absent-today { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); font-weight: 700; }
 
 /* 2. 시간표 탭 (08:00 ~ 익일 01:00 총 17시간) */
 .tt-controls {
@@ -570,6 +574,11 @@ main {
   color: var(--warn) !important;
   opacity: 0.65;
   text-decoration: line-through;
+}
+/* 시간표(변동 반영): 지나간 수업(또는 완료된 수업) 취소선 없이 흐리게 */
+.tt-pill.is-past, .tt-grid-event.is-past {
+  opacity: 0.42;
+  filter: grayscale(25%);
 }
 
 .tt-grid-board {
@@ -1424,7 +1433,7 @@ main {
 
     <h4 style="margin:0 0 6px; font-size:14px;">☁️ 구글 스프레드시트(Apps Script) 자동 저장 연동</h4>
     <p style="font-size:12px; color:var(--mute); margin:0 0 10px;">
-      비용 0원으로 내 구글 드라이브에 실시간 백업합니다. 시트 화면에 <b>학생별 요약 표</b>와 <b>백업 시각</b>도 함께 기록됩니다.
+      비용 0원으로 내 구글 드라이브에 실시간 백업합니다. 시트 화면에 <b>학생별 요약 표</b>와 <b>백업 시각</b>도 함께 기록되며, 폰과 컴퓨터 간 자동 동기화 및 덮어쓰기 방지가 작동합니다.
     </p>
     <div class="form-row">
       <label>구글 Apps Script 웹 앱 URL</label>
@@ -1443,19 +1452,30 @@ main {
         2. 상단 메뉴 <b>[확장 프로그램] → [Apps Script]</b>를 클릭합니다.<br>
         3. 기존 코드를 지우고 아래 <b>[스크립트 코드 복사]</b> 버튼을 눌러 붙여넣은 뒤 저장(💾)합니다.<br>
         4. 우측 상단 <b>[배포] → [새 배포]</b> 클릭 → 유형을 <b>'웹 앱'</b>으로 선택 → 다음 사용자로 실행: <b>'나'</b>, 액세스 권한: <b>'모든 사용자'</b>로 설정 후 배포합니다.<br>
-        5. 발급된 <b>웹 앱 URL(`.../exec`)</b>을 복사해 위 입력 칸에 붙여넣고 [설정 저장]을 누르면 끝입니다! (코드를 수정했을 때는 반드시 [새 배포]로 새 URL을 발급받아야 반영됩니다.)
+        5. 발급된 <b>웹 앱 URL(`.../exec`)</b>을 복사해 위 입력 칸에 붙여넣고 [설정 저장]을 누르면 끝입니다!
         <div class="code-pre" id="gasCodeBlock">/** @OnlyCurrentDoc */
 function doPost(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var raw = e.postData.contents;
+  var incomingRaw = e.postData.contents;
+  var incoming = JSON.parse(incomingRaw);
+
+  var existingRaw = sheet.getRange("D1").getValue();
+  if (existingRaw) {
+    try {
+      var existing = JSON.parse(existingRaw);
+      if ((existing.updatedAt || 0) > (incoming.updatedAt || 0)) {
+        return ContentService.createTextOutput("REJECTED_OLDER");
+      }
+    } catch (err) {}
+  }
+
   sheet.clear();
   sheet.getRange("A1").setValue("최근 백업 시각");
   sheet.getRange("B1").setValue(new Date().toLocaleString("ko-KR"));
-  sheet.getRange("D1").setValue(raw);
+  sheet.getRange("D1").setValue(incomingRaw);
   try {
-    var data = JSON.parse(raw);
     sheet.getRange("A3:D3").setValues([["학생명", "방식", "교육비", "현재 진행 회차"]]);
-    var rows = (data.students || []).map(function(s) {
+    var rows = (incoming.students || []).map(function(s) {
       var cnt = (s.currentLogs || []).filter(function(l) {
         return l.type === "정규" || l.type === "보강" || l.type === "결강";
       }).length;
@@ -1547,6 +1567,7 @@ const DEFAULT_SAMPLES = [
 ];
 
 let state = {
+  updatedAt: 0,
   settings: {
     appTitle: '과외 매니저',
     subjectMode: 'single',
@@ -1576,6 +1597,7 @@ try {
   if (saved) {
     const parsed = JSON.parse(saved);
     state = Object.assign(state, parsed);
+    if (!state.settings) state.settings = { appTitle: '과외 매니저', subjectMode: 'single', theme: 'auto', gasUrl: '' };
     if (!state.settings.subjectMode) state.settings.subjectMode = 'single';
     if (!state.templates) state.templates = { ...DEFAULT_TEMPLATES };
     if (!state.samples || !state.samples.length) state.samples = [...DEFAULT_SAMPLES];
@@ -1589,7 +1611,7 @@ try {
 
 function saveState(skipCloud = false) {
   if (!skipCloud) {
-    state.updatedAt = Date.now(); // 내가 수정을 가할 때만 최신 타임스탬프 갱신
+    state.updatedAt = Date.now();
   }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -1677,7 +1699,7 @@ function getActiveScheduleForStudent(st) {
   const allLogs = [...(st.currentLogs || []), ...(st.archivedLogs || [])];
   const now = new Date();
 
-  // 1순위: 오늘이 정규 수업 요일이고 '휴강'이 찍혀 있다면 무조건 오늘 요일에 회색 휴강 카드로 표시!
+  // 1순위: 오늘이 정규 수업 요일이고 '휴강'이 찍혀 있다면 무조건 오늘 요일에 회색 휴강 카드로 표시
   const todayMatched = scheds.filter(sc => Number(sc.dow) === todayDow).sort((a, b) => a.start.localeCompare(b.start));
   const isTodaySkip = allLogs.some(l => l.date === todayIso && l.type === '휴강');
   if (todayMatched.length && isTodaySkip) {
@@ -1702,7 +1724,7 @@ function getActiveScheduleForStudent(st) {
     return { ...todayMatched[0], targetDate: todayIso, isMakeupSlot: false, isSkipSlot: false };
   }
 
-  // 4순위: 내일부터 6일 이내에 돌아오는 가장 가까운 일정(보강예정 또는 정규/휴강)을 날짜순으로 탐색
+  // 4순위: 내일부터 6일 이내에 돌아오는 가장 가까운 일정(휴강, 보강예정, 미기록 정규)을 날짜순 탐색
   const existingCountedDates = new Set(
     allLogs.filter(l => l.type === '정규' || l.type === '보강' || l.type === '결강').map(l => l.date)
   );
@@ -1712,14 +1734,12 @@ function getActiveScheduleForStudent(st) {
     const iso = toIsoDate(d);
     const dow = (d.getDay() + 6) % 7;
 
-    // 해당 날짜가 정규 수업 요일이고 '휴강'이 찍혀 있으면 회색 휴강 카드로 우선 노출
     const matched = scheds.filter(sc => Number(sc.dow) === dow).sort((a, b) => a.start.localeCompare(b.start));
     const isSkip = allLogs.some(l => l.date === iso && l.type === '휴강');
     if (matched.length && isSkip) {
       return { ...matched[0], targetDate: iso, isMakeupSlot: false, isSkipSlot: true };
     }
 
-    // 해당 날짜에 보강예정이 잡혀 있으면 그 요일로 카드 배치
     const plannedMakeup = allLogs.find(l => l.date === iso && (l.type === '보강예정' || l.type === '보강'));
     if (plannedMakeup) {
       return {
@@ -1732,7 +1752,6 @@ function getActiveScheduleForStudent(st) {
       };
     }
 
-    // 일반 미기록 정규 수업일 배치
     if (matched.length && !existingCountedDates.has(iso)) {
       return { ...matched[0], targetDate: iso, isMakeupSlot: false, isSkipSlot: false };
     }
@@ -1808,9 +1827,14 @@ function buildStudentCardEl(st, activeSc = null) {
   const { base, cnt, extraCycles, effTarget, needPrepay } = status;
   const isOver = cnt > effTarget;
   const isFull = cnt >= effTarget;
+  const isSkipSlot = Boolean(activeSc && activeSc.isSkipSlot);
+  const isMakeupSlot = Boolean(activeSc && activeSc.isMakeupSlot);
 
   const card = document.createElement('div');
-  card.className = 'st-card' + (isOver ? ' over-limit' : '') + (needPrepay ? ' need-prepay' : '');
+  card.className = 'st-card'
+    + (isOver ? ' over-limit' : '')
+    + (needPrepay ? ' need-prepay' : '')
+    + (isSkipSlot ? ' is-skip-day' : '');
   card.onclick = () => openStudentCalendar(st.id);
 
   const totalCells = Math.max(effTarget, cnt);
@@ -1834,8 +1858,9 @@ function buildStudentCardEl(st, activeSc = null) {
     ? `<span class="badge mute">주${st.schedules.length}회</span>`
     : '';
 
-  const plannedCnt = (st.currentLogs || []).filter(l => l.type === '보강예정').length;
-  const plannedBadge = plannedCnt > 0 ? `<span class="badge">보강예정 ${plannedCnt}</span>` : '';
+  const slotBadge = isSkipSlot
+    ? `<span class="badge mute">휴강</span>`
+    : (isMakeupSlot ? `<span class="badge">보강일정</span>` : '');
 
   const payStateBadge = needPrepay
     ? `<span class="badge warn">선납 미납</span>`
@@ -1843,9 +1868,8 @@ function buildStudentCardEl(st, activeSc = null) {
         ? `<span class="badge">선납 +${extraCycles * base}회</span>`
         : `<span class="badge mute">${st.payType}</span>`);
 
-  // [추가] 오늘 날짜(todayIso)로 이미 기록된 수업이 있는지 확인 (자동 이월된 기록까지 포함)
   const todayLog = [...(st.currentLogs || []), ...(st.archivedLogs || [])].find(
-    l => l.date === todayIso && (l.type === '정규' || l.type === '결강' || l.type === '보강' || l.type === '휴강')
+    l => l.date === todayIso && (l.type === '정규' || l.type === '결강' || l.type === '보강')
   );
   const isRegDone = todayLog && (todayLog.type === '정규' || todayLog.type === '보강');
   const isAbsDone = todayLog && todayLog.type === '결강';
@@ -1870,9 +1894,9 @@ function buildStudentCardEl(st, activeSc = null) {
       <div class="st-name-wrap">
         <span class="st-name">${st.name}</span>
         ${timeAndSubjText ? `<span class="st-time-label">${timeAndSubjText}</span>` : ''}
+        ${slotBadge}
         ${multiBadge}
         ${payStateBadge}
-        ${plannedBadge}
         ${isOver ? `<span class="badge warn">+${cnt - effTarget}초과</span>` : (isFull ? `<span class="badge">완료</span>` : '')}
       </div>
       <div class="prog-text ${isOver ? 'over' : ''}">${needPrepay ? '미납' : `${cnt}/${effTarget}`}</div>
@@ -1978,7 +2002,6 @@ window.quickAddRegularLog = function(stId, type, preferDow = null) {
   const st = state.students.find(s => s.id === stId);
   if (!st) return;
 
-  // 오늘 날짜에 '보강예정'이 있는데 [정규]를 누른 경우 -> '보강(완료)'으로 즉시 전환!
   const plannedIdx = (st.currentLogs || []).findIndex(l => l.date === todayIso && l.type === '보강예정');
   if (plannedIdx >= 0 && type === '정규') {
     st.currentLogs[plannedIdx].type = '보강';
@@ -1988,14 +2011,12 @@ window.quickAddRegularLog = function(stId, type, preferDow = null) {
     return;
   }
 
-  // 오늘 날짜로 이미 찍힌 정규/보강/결강 기록이 있는지 확인 (재클릭 시 취소 또는 변경)
   const curIdx = (st.currentLogs || []).findIndex(
     l => l.date === todayIso && (l.type === '정규' || l.type === '결강' || l.type === '보강')
   );
   if (curIdx >= 0) {
     const curLog = st.currentLogs[curIdx];
     if (curLog.type === '보강' && type === '정규') {
-      // 보강 완료 상태에서 다시 누르면 '보강예정'으로 되돌림
       curLog.type = '보강예정';
     } else if (curLog.type === type) {
       st.currentLogs.splice(curIdx, 1);
@@ -2007,7 +2028,6 @@ window.quickAddRegularLog = function(stId, type, preferDow = null) {
     return;
   }
 
-  // 자동 이월된 기록(archivedLogs)에 오늘 기록이 있는 경우 취소/변경 처리
   const archIdx = (st.archivedLogs || []).findIndex(
     l => l.date === todayIso && (l.type === '정규' || l.type === '결강' || l.type === '보강')
   );
@@ -2030,7 +2050,6 @@ window.quickAddRegularLog = function(stId, type, preferDow = null) {
     return;
   }
 
-  // 만약 해당 슬롯이 다가오는 '보강예정' 날이고 미리 완료 버튼을 누른 경우
   const activeSc = getActiveScheduleForStudent(st);
   if (activeSc && activeSc.isMakeupSlot && activeSc.targetDate) {
     const pIdx = (st.currentLogs || []).findIndex(l => l.date === activeSc.targetDate && l.type === '보강예정');
@@ -2521,7 +2540,6 @@ function renderTimetableTab() {
   const weekNav = document.getElementById('ttWeekNav');
   const isFixed = (ttMode === 'fixed');
 
-  // '정규만' 모드일 때는 주차 이동 버튼을 숨기고 매주 동일한 고정 시간표만 가볍게 렌더링!
   weekNav.style.display = isFixed ? 'none' : 'flex';
 
   const weekDates = [];
@@ -2556,7 +2574,6 @@ function renderTimetableTab() {
         if (cancelLog) {
           canceledType = cancelLog.type;
         } else {
-          // 이미 지나간 날짜이거나, 오늘 이미 정규/보강 완료를 누른 수업이면 취소선 없이 흐리게 처리!
           const doneToday = (iso === todayIso) && allLogs.some(l => l.date === iso && (l.type === '정규' || l.type === '보강'));
           if (iso < todayIso || doneToday) isPast = true;
         }
@@ -2692,12 +2709,11 @@ document.getElementById('btnPrevWeek').onclick = () => { currentMonday.setDate(c
 document.getElementById('btnNextWeek').onclick = () => { currentMonday.setDate(currentMonday.getDate() + 7); renderTimetableTab(); };
 document.getElementById('btnThisWeek').onclick = () => { currentMonday = getMonday(new Date()); renderTimetableTab(); };
 
-// ================= 3. 가계부 탭 =================
+// ================= 3. 가계부 탭 (보강예정 및 다음 1주차 입금일 반영) =================
 let finMonthDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedFinDate = todayIso;
 let finView = 'calendar';
 
-// [가계부 탭] 예상 입금일 계산: 4주차 마지막 수업일이 아닌 '그다음 주기 1회차 수업일'로 산출
 function computeExpectedIncomes() {
   const expected = [];
   const activeStudents = state.students.filter(s => s.status !== 'ended');
@@ -2707,7 +2723,6 @@ function computeExpectedIncomes() {
     const dows = (st.schedules || []).map(sc => Number(sc.dow));
     const allLogs = [...(st.currentLogs || []), ...(st.archivedLogs || [])];
 
-    // 미리 잡아둔 '보강예정' 날짜들과 '휴강' 날짜들을 추출
     const plannedMakeupDates = new Set(
       allLogs.filter(l => l.type === '보강예정').map(l => l.date)
     );
@@ -2722,7 +2737,6 @@ function computeExpectedIncomes() {
       l => l.date === todayIso && (l.type === '정규' || l.type === '보강' || l.type === '결강')
     );
 
-    // 남은 회차를 다 채운 뒤 돌아오는 '다음 주기 1회차 수업일(+1)'까지 필요한 수업 수
     let classesUntilPay = status.needPrepay
       ? 1
       : Math.max(0, status.effTarget - status.cnt) + 1;
@@ -2738,12 +2752,10 @@ function computeExpectedIncomes() {
       const iso = toIsoDate(cursor);
       const ourDow = (cursor.getDay() + 6) % 7;
 
-      // 1) 정규 수업 요일이면서 휴강이 아닌 날이거나, 2) '보강예정'이 잡혀 있는 날이면 수업 진행으로 카운트!
       const isRegularClass = dows.includes(ourDow) && !skipDates.has(iso);
       const isPlannedMakeup = plannedMakeupDates.has(iso);
 
       if (isRegularClass || isPlannedMakeup) {
-        // 만약 같은 날 정규 수업과 보강예정이 겹쳐 있다면 각각 카운트
         const sessionCountToday = (isRegularClass ? 1 : 0) + (isPlannedMakeup ? 1 : 0);
         for (let s = 0; s < sessionCountToday; s++) {
           classesUntilPay--;
@@ -3241,7 +3253,7 @@ document.getElementById('btnSaveSamples').onclick = () => {
   renderPromptGenerator();
 };
 
-// ================= 설정 & 구글 시트 백업 (모바일 JSONP 우회 호환) =================
+// ================= 설정 & 구글 시트 동기화 =================
 document.getElementById('btnOpenSettings').onclick = () => {
   document.getElementById('setAppTitleInput').value = state.settings.appTitle || '과외 매니저';
   document.getElementById('setMultiSubjectSelect').value = state.settings.subjectMode || 'single';
@@ -3266,7 +3278,6 @@ document.getElementById('btnCopyGasCode').onclick = async () => {
   try { await navigator.clipboard.writeText(code); alert('복사되었습니다.'); } catch (e) {}
 };
 
-// 시트에서 최신 데이터 자동/수동으로 당겨오기 (JSONP + Fetch 겸용)
 function pullFromCloud(silent = true) {
   const inputUrl = document.getElementById('setGasUrlInput')?.value?.trim();
   if (inputUrl) state.settings.gasUrl = inputUrl;
@@ -3285,7 +3296,6 @@ function pullFromCloud(silent = true) {
         const cloudTime = Number(cloudData.updatedAt) || 0;
         const localTime = Number(state.updatedAt) || 0;
 
-        // 수동 불러오기(!silent)이거나, 시트 데이터가 내 기기보다 더 최신일 때 자동 반영!
         if (!silent || cloudTime >= localTime) {
           const keepUrl = state.settings.gasUrl;
           state = Object.assign(state, cloudData);
@@ -3320,7 +3330,6 @@ function pullFromCloud(silent = true) {
   });
 }
 
-// 백업 전송 전, 혹시 시트에 더 최신 데이터가 있는지 먼저 확인 후 안전하게 전송
 async function pushToCloud(silent = false) {
   const inputUrl = document.getElementById('setGasUrlInput')?.value?.trim();
   if (inputUrl) state.settings.gasUrl = inputUrl;
@@ -3349,66 +3358,10 @@ async function pushToCloud(silent = false) {
 }
 
 document.getElementById('btnCloudPush').onclick = () => {
-  state.updatedAt = Date.now(); // 수동 백업 시 현재 기기를 강제 최신으로 지정
+  state.updatedAt = Date.now();
   pushToCloud(false);
 };
 document.getElementById('btnCloudPull').onclick = () => pullFromCloud(false);
-
-// [핵심] 앱을 처음 켤 때 & 다른 화면 보다가 다시 앱 화면으로 돌아올 때마다 자동으로 최신 시트 불러오기!
-if (state.settings.gasUrl) {
-  pullFromCloud(true);
-}
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && state.settings.gasUrl) {
-    pullFromCloud(true);
-  }
-});
-
-// 모바일 Safari/Chrome에서도 100% 작동하도록 Fetch + JSONP 이중 처리 및 입력칸 URL 즉시 반영
-document.getElementById('btnCloudPull').onclick = async () => {
-  const inputUrl = document.getElementById('setGasUrlInput')?.value?.trim();
-  if (inputUrl) state.settings.gasUrl = inputUrl;
-  const url = (state.settings.gasUrl || '').trim();
-  if (!url) {
-    alert('구글 Apps Script 웹 앱 URL을 먼저 입력해 주세요.');
-    return;
-  }
-  const dot = document.getElementById('syncDot');
-  dot.className = 'sync-dot busy';
-
-  window.__handleCloudData = function(data) {
-    if (data && Array.isArray(data.students)) {
-      const keepUrl = state.settings.gasUrl;
-      state = Object.assign(state, data);
-      if (!state.settings) state.settings = {};
-      state.settings.gasUrl = keepUrl;
-      saveState(true);
-      applyThemeAndTitle();
-      renderAll();
-      dot.className = 'sync-dot ok';
-      closeModal('settingsModal');
-      alert('구글 시트에서 데이터를 성공적으로 불러왔습니다!');
-    } else {
-      dot.className = 'sync-dot';
-      alert('시트에 아직 저장된 데이터가 없습니다. 먼저 컴퓨터에서 [백업]을 눌러주세요.');
-    }
-  };
-
-  try {
-    const res = await fetch(url, { redirect: 'follow' });
-    const data = await res.json();
-    window.__handleCloudData(data);
-  } catch (e) {
-    // 모바일 브라우저에서 CORS 리다이렉트가 막힐 경우 스크립트 태그(JSONP)로 우회 호출
-    const s = document.createElement('script');
-    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=__handleCloudData&t=' + Date.now();
-    s.onerror = () => {
-      dot.className = 'sync-dot';
-      alert('불러오기 실패: Apps Script에서 새 코드를 넣고 [새 배포] -> 액세스 권한 [모든 사용자]로 설정했는지 확인해 주세요.');
-    };
-    document.body.appendChild(s);
-  }
-};
 
 document.getElementById('btnExportJson').onclick = () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -3426,7 +3379,7 @@ document.getElementById('inputImportJson').onchange = e => {
       const parsed = JSON.parse(ev.target.result);
       if (parsed && Array.isArray(parsed.students)) {
         state = Object.assign(state, parsed);
-        saveState(true);
+        saveState();
         applyThemeAndTitle();
         renderAll();
         alert('복원 완료!');
@@ -3459,6 +3412,15 @@ function renderAll() {
 
 applyThemeAndTitle();
 renderAll();
+
+if (state.settings.gasUrl) {
+  pullFromCloud(true);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.settings.gasUrl) {
+    pullFromCloud(true);
+  }
+});
 </script>
 </body>
 </html>
