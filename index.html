@@ -999,7 +999,7 @@ main {
   overflow-y: auto;
   padding: 16px;
 }
-.modal-box.mini { max-width: 340px; }
+.modal-box.mini { max-width: 350px; }
 .form-row { margin-bottom: 12px; }
 .form-row label {
   display: block;
@@ -1222,7 +1222,7 @@ main {
   </button>
 </nav>
 
-<!-- ================= 모달 P: 교육비 날짜 선택 미니 달력 팝업 ================= -->
+<!-- ================= 모달 P: 교육비 날짜·금액·연장회차 선택 미니 달력 팝업 ================= -->
 <div class="modal-backdrop" id="payModal">
   <div class="modal-box mini">
     <div class="section-top" style="margin-bottom:8px;">
@@ -1238,9 +1238,15 @@ main {
       <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span style="color:#2b7de9">토</span><span style="color:#e04f44">일</span>
     </div>
     <div id="payCalDays" class="mini-cal-days" style="margin-bottom:10px;"></div>
-    <div class="form-row">
-      <label>입금 금액 (원)</label>
-      <input type="text" inputmode="numeric" id="payAmountInput">
+    <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:8px;" class="form-row">
+      <div>
+        <label>입금 금액 (원)</label>
+        <input type="text" inputmode="numeric" id="payAmountInput">
+      </div>
+      <div>
+        <label>추가/연장 회차</label>
+        <input type="text" inputmode="numeric" id="payAddedCountInput" placeholder="4">
+      </div>
     </div>
     <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:12px;">
       <button type="button" class="btn-ghost" onclick="closeModal('payModal')">취소</button>
@@ -1351,6 +1357,13 @@ main {
         <button type="button" class="btn-ghost" id="btnAddSchedRow" style="height:30px; padding:0 10px; font-size:12px;">+ 추가</button>
       </div>
       <div id="schedRowsContainer"></div>
+    </div>
+    <div class="form-row">
+      <label>수업 종료 예정일 (선택 · 비워두면 기한 없음)</label>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <input type="date" id="stEndDateInput">
+        <button type="button" class="btn-ghost" style="height:40px; padding:0 10px; font-size:12px;" onclick="document.getElementById('stEndDateInput').value=''">비우기</button>
+      </div>
     </div>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px; gap:6px; flex-wrap:wrap;">
       <div id="stModalLeftActions" style="display:flex; gap:6px;"></div>
@@ -1605,6 +1618,7 @@ try {
       if (!Array.isArray(s.archivedLogs)) s.archivedLogs = [];
       if (!Array.isArray(s.currentLogs)) s.currentLogs = [];
       if (typeof s.subject !== 'string') s.subject = '';
+      if (typeof s.endDate !== 'string') s.endDate = '';
     });
   }
 } catch (e) {}
@@ -1636,23 +1650,31 @@ function getArchivedCountableLogs(st) {
   return (st.archivedLogs || []).filter(l => l.type === '정규' || l.type === '보강' || l.type === '결강');
 }
 
+// 부분 납입(맞춤 연장 회차 addedCount)까지 정확하게 반영하여 학생 회차 상태를 산출
 function getStudentCycleStatus(st) {
   const base = Math.max(1, Number(st.targetCount) || 4);
   const cnt = getCountableLogs(st).length;
   const archivedCnt = getArchivedCountableLogs(st).length;
-  const completedCycles = Math.floor(archivedCnt / base);
-  const totalPayments = (state.incomes || []).filter(inc => inc.studentId === st.id).length;
+  const studentIncomes = (state.incomes || []).filter(inc => inc.studentId === st.id);
+  const totalPayments = studentIncomes.length;
 
-  const activePaidCredits = Math.max(0, totalPayments - completedCycles);
-  const needPrepay = (st.payType === '선납' && activePaidCredits === 0 && cnt === 0);
-  const extraCycles = Math.max(0, activePaidCredits - 1);
-  const effTarget = base * (1 + extraCycles);
+  const totalPurchasedSessions = studentIncomes.reduce(
+    (sum, inc) => sum + (Number(inc.addedCount) > 0 ? Number(inc.addedCount) : base),
+    0
+  );
+
+  const remainingPaidSessions = Math.max(0, totalPurchasedSessions - archivedCnt);
+  const needPrepay = (st.payType === '선납' && totalPayments === 0 && cnt === 0);
+
+  const effTarget = remainingPaidSessions > 0 ? remainingPaidSessions : base;
+  const extraSessions = Math.max(0, effTarget - base);
 
   return {
     base,
     cnt,
-    activePaidCredits,
-    extraCycles,
+    activePaidCredits: remainingPaidSessions > 0 ? Math.ceil(remainingPaidSessions / base) : 0,
+    extraCycles: Math.floor(extraSessions / base),
+    extraSessions,
     effTarget,
     needPrepay
   };
@@ -1663,7 +1685,8 @@ function syncStudentRollover(st) {
   while (true) {
     const status = getStudentCycleStatus(st);
     const counted = getCountableLogs(st).sort((a, b) => a.date.localeCompare(b.date));
-    if (status.extraCycles >= 1 && counted.length >= base) {
+    // 현재 확보된 유료 한도(effTarget)가 기준 회차(base)보다 많고, 진행 수업이 base를 채웠을 때 지난 주기를 자동 이월
+    if (status.effTarget > base && counted.length >= base) {
       const finishedBatch = counted.slice(0, base);
       const finishedIds = new Set(finishedBatch.map(l => l.id));
       if (!Array.isArray(st.archivedLogs)) st.archivedLogs = [];
@@ -1697,18 +1720,17 @@ function getStudentColorIndex(stId) {
 function getActiveScheduleForStudent(st) {
   const scheds = st.schedules || [];
   const allLogs = [...(st.currentLogs || []), ...(st.archivedLogs || [])];
+  const endDate = (st.endDate || '').trim();
   const now = new Date();
 
-  // 1순위: 오늘이 정규 수업 요일이고 '휴강'이 찍혀 있다면 무조건 오늘 요일에 회색 휴강 카드로 표시
   const todayMatched = scheds.filter(sc => Number(sc.dow) === todayDow).sort((a, b) => a.start.localeCompare(b.start));
   const isTodaySkip = allLogs.some(l => l.date === todayIso && l.type === '휴강');
-  if (todayMatched.length && isTodaySkip) {
+  if (todayMatched.length && isTodaySkip && (!endDate || todayIso <= endDate)) {
     return { ...todayMatched[0], targetDate: todayIso, isMakeupSlot: false, isSkipSlot: true };
   }
 
-  // 2순위: 오늘 날짜에 잡힌 보강(보강예정/보강) 확인
   const todayMakeup = allLogs.find(l => l.date === todayIso && (l.type === '보강예정' || l.type === '보강'));
-  if (todayMakeup) {
+  if (todayMakeup && (!endDate || todayIso <= endDate)) {
     return {
       dow: todayDow,
       start: todayMakeup.start || scheds[0]?.start || '14:00',
@@ -1719,12 +1741,10 @@ function getActiveScheduleForStudent(st) {
     };
   }
 
-  // 3순위: 오늘이 일반 정규 수업 요일인 경우
-  if (todayMatched.length) {
+  if (todayMatched.length && (!endDate || todayIso <= endDate)) {
     return { ...todayMatched[0], targetDate: todayIso, isMakeupSlot: false, isSkipSlot: false };
   }
 
-  // 4순위: 내일부터 6일 이내에 돌아오는 가장 가까운 일정(휴강, 보강예정, 미기록 정규)을 날짜순 탐색
   const existingCountedDates = new Set(
     allLogs.filter(l => l.type === '정규' || l.type === '보강' || l.type === '결강').map(l => l.date)
   );
@@ -1732,6 +1752,7 @@ function getActiveScheduleForStudent(st) {
   for (let offset = 1; offset <= 6; offset++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
     const iso = toIsoDate(d);
+    if (endDate && iso > endDate) continue;
     const dow = (d.getDay() + 6) % 7;
 
     const matched = scheds.filter(sc => Number(sc.dow) === dow).sort((a, b) => a.start.localeCompare(b.start));
@@ -1792,9 +1813,10 @@ function getSmartRegularDate(st, preferDow = null) {
   return todayIso;
 }
 
-function processPaymentForStudent(st, dateIso, amount) {
+function processPaymentForStudent(st, dateIso, amount, customAddedCount = null) {
   const beforeStatus = getStudentCycleStatus(st);
   const counted = getCountableLogs(st).sort((a, b) => a.date.localeCompare(b.date));
+  const addedCount = Math.max(1, cleanNum(customAddedCount) || beforeStatus.base);
 
   state.incomes.push({
     id: 'inc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
@@ -1802,11 +1824,13 @@ function processPaymentForStudent(st, dateIso, amount) {
     studentId: st.id,
     studentName: st.name,
     amount: cleanNum(amount),
+    addedCount,
     isExtraIncome: false
   });
 
-  if (counted.length >= beforeStatus.base) {
-    const finishedBatch = counted.slice(0, beforeStatus.base);
+  if (counted.length >= beforeStatus.effTarget) {
+    const batchSize = Math.min(counted.length, beforeStatus.effTarget);
+    const finishedBatch = counted.slice(0, batchSize);
     const finishedIds = new Set(finishedBatch.map(l => l.id));
     if (!Array.isArray(st.archivedLogs)) st.archivedLogs = [];
 
@@ -1824,7 +1848,7 @@ let showEnded = false;
 
 function buildStudentCardEl(st, activeSc = null) {
   const status = getStudentCycleStatus(st);
-  const { base, cnt, extraCycles, effTarget, needPrepay } = status;
+  const { cnt, extraSessions, effTarget, needPrepay } = status;
   const isOver = cnt > effTarget;
   const isFull = cnt >= effTarget;
   const isSkipSlot = Boolean(activeSc && activeSc.isSkipSlot);
@@ -1862,10 +1886,14 @@ function buildStudentCardEl(st, activeSc = null) {
     ? `<span class="badge mute">휴강</span>`
     : (isMakeupSlot ? `<span class="badge">보강일정</span>` : '');
 
+  const endDateBadge = (st.endDate && st.endDate.trim())
+    ? `<span class="badge mute">~${Number(st.endDate.split('-')[1])}/${Number(st.endDate.split('-')[2])} 종료</span>`
+    : '';
+
   const payStateBadge = needPrepay
     ? `<span class="badge warn">선납 미납</span>`
-    : (extraCycles > 0
-        ? `<span class="badge">선납 +${extraCycles * base}회</span>`
+    : (extraSessions > 0
+        ? `<span class="badge">선납 +${extraSessions}회</span>`
         : `<span class="badge mute">${st.payType}</span>`);
 
   const todayLog = [...(st.currentLogs || []), ...(st.archivedLogs || [])].find(
@@ -1897,6 +1925,7 @@ function buildStudentCardEl(st, activeSc = null) {
         ${slotBadge}
         ${multiBadge}
         ${payStateBadge}
+        ${endDateBadge}
         ${isOver ? `<span class="badge warn">+${cnt - effTarget}초과</span>` : (isFull ? `<span class="badge">완료</span>` : '')}
       </div>
       <div class="prog-text ${isOver ? 'over' : ''}">${needPrepay ? '미납' : `${cnt}/${effTarget}`}</div>
@@ -2103,27 +2132,27 @@ window.changeLogType = function(stId, logId, newType, fromArchive = false) {
   renderStudentCalendarModal();
 };
 
-// ================= 모달 P: 교육비 날짜 선택 미니 팝업 =================
+// ================= 모달 P: 교육비 날짜·금액·연장회차 선택 미니 팝업 =================
 let payTargetStudentId = null;
 let payCalMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let paySelectedDate = todayIso;
 
-window.openPayModal = function(stId) {
+window.openPayModal = function(stId, presetDate = null) {
   const st = state.students.find(s => s.id === stId);
   if (!st) return;
   payTargetStudentId = stId;
-  paySelectedDate = todayIso;
-  payCalMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  paySelectedDate = presetDate || todayIso;
+  const [py, pm] = paySelectedDate.split('-').map(Number);
+  payCalMonth = new Date(py, pm - 1, 1);
 
   const status = getStudentCycleStatus(st);
   let titleTxt = `${st.name} · 교육비 등록`;
   if (status.needPrepay) titleTxt = `${st.name} · 선납 교육비 (회차 시작)`;
-  else if (status.activePaidCredits >= 1 && status.cnt < status.base) {
-    titleTxt = `${st.name} · 다음 주기 미리 납부 (+${status.base}회 확장)`;
-  }
+  else if (status.cnt < status.base) titleTxt = `${st.name} · 교육비 / 연장 등록`;
 
   document.getElementById('payModalTitle').textContent = titleTxt;
   document.getElementById('payAmountInput').value = cleanNum(st.fee);
+  document.getElementById('payAddedCountInput').value = status.base;
 
   renderPayMiniCal();
   document.getElementById('payModal').classList.add('open');
@@ -2165,8 +2194,9 @@ document.getElementById('btnConfirmPay').onclick = () => {
   const st = state.students.find(s => s.id === payTargetStudentId);
   if (!st) return;
   const amount = cleanNum(document.getElementById('payAmountInput').value);
+  const addedCount = cleanNum(document.getElementById('payAddedCountInput').value) || Number(st.targetCount) || 4;
 
-  processPaymentForStudent(st, paySelectedDate, amount);
+  processPaymentForStudent(st, paySelectedDate, amount, addedCount);
   saveState();
   closeModal('payModal');
   renderAll();
@@ -2207,11 +2237,12 @@ function renderStudentCalendarModal() {
     .map(sc => `${DOW_NAMES[sc.dow]} ${sc.start}~${sc.end}`)
     .join(', ');
   const subjInfo = (state.settings.subjectMode === 'multi' && st.subject) ? ` · ${st.subject}` : '';
+  const endInfo = (st.endDate && st.endDate.trim()) ? ` · ~${st.endDate} 종료예정` : '';
   const status = getStudentCycleStatus(st);
 
   document.getElementById('stCalModalTitle').textContent =
     status.needPrepay ? `${st.name} (선납 미납 대기)` : `${st.name} (${status.cnt}/${status.effTarget}회)`;
-  document.getElementById('stCalSubInfo').textContent = `${schedStr}${subjInfo} · ${fmtMoney(st.fee)} (${st.payType})`;
+  document.getElementById('stCalSubInfo').textContent = `${schedStr}${subjInfo} · ${fmtMoney(st.fee)} (${st.payType})${endInfo}`;
 
   const y = stCalMonthDate.getFullYear();
   const m = stCalMonthDate.getMonth();
@@ -2223,13 +2254,14 @@ function renderStudentCalendarModal() {
   const firstOffset = (new Date(y, m, 1).getDay() + 6) % 7;
   const lastDay = new Date(y, m + 1, 0).getDate();
   const regDows = (st.schedules || []).map(sc => Number(sc.dow));
+  const endDate = (st.endDate || '').trim();
 
   for (let i = 0; i < firstOffset; i++) grid.appendChild(document.createElement('div'));
 
   for (let d = 1; d <= lastDay; d++) {
     const iso = `${y}-${pad(m + 1)}-${pad(d)}`;
     const ourDow = (new Date(y, m, d).getDay() + 6) % 7;
-    const isRegDay = regDows.includes(ourDow);
+    const isRegDay = regDows.includes(ourDow) && (!endDate || iso <= endDate);
 
     const cell = document.createElement('div');
     cell.className = [
@@ -2251,8 +2283,9 @@ function renderStudentCalendarModal() {
     pastLogs.forEach(l => {
       tagsHtml += `<div class="cal-tag st-past">${l.type}</div>`;
     });
-    paidIncs.forEach(() => {
-      tagsHtml += `<div class="cal-tag st-paid">교육비</div>`;
+    paidIncs.forEach(inc => {
+      const cntTxt = Number(inc.addedCount) > 0 ? `(${inc.addedCount}회)` : '';
+      tagsHtml += `<div class="cal-tag st-paid">교육비${cntTxt}</div>`;
     });
 
     cell.innerHTML = `<span class="d-num">${d}</span>${tagsHtml}`;
@@ -2311,9 +2344,10 @@ function renderStudentCalendarModal() {
       `;
     });
     dayPaid.forEach(inc => {
+      const addedInfo = Number(inc.addedCount) > 0 ? ` · ${inc.addedCount}회분` : '';
       html += `
         <div class="log-edit-row">
-          <span style="font-size:12.5px; color:var(--green-ink);"><b>교육비 납부</b> (${fmtMoney(inc.amount)})</span>
+          <span style="font-size:12.5px; color:var(--green-ink);"><b>교육비 납부</b> (${fmtMoney(inc.amount)}${addedInfo})</span>
           <button type="button" class="btn-danger" style="height:28px; padding:0 8px; font-size:11.5px;" onclick="deleteIncome('${inc.id}')">교육비 삭제</button>
         </div>
       `;
@@ -2362,13 +2396,10 @@ document.getElementById('btnStCalAddSkip').onclick = () => addLogFromStudentCal(
 document.getElementById('btnStCalAddReg').onclick = () => addLogFromStudentCal('정규');
 document.getElementById('btnStCalAddAbs').onclick = () => addLogFromStudentCal('결강');
 
+// 달력 안에서 [+ 교육비]를 누르면 선택한 날짜로 금액 및 연장 회차를 지정할 수 있는 미니 팝업 호출
 document.getElementById('btnStCalAddPay').onclick = () => {
-  const st = state.students.find(s => s.id === currentCalStudentId);
-  if (!st) return;
-  processPaymentForStudent(st, stCalSelectedDate, st.fee);
-  saveState();
-  renderAll();
-  renderStudentCalendarModal();
+  if (!currentCalStudentId) return;
+  openPayModal(currentCalStudentId, stCalSelectedDate);
 };
 
 // ================= 학생 등록 / 수정 모달 =================
@@ -2438,6 +2469,7 @@ window.openStudentModal = function(stId) {
     document.getElementById('stTargetInput').value = '4';
     document.getElementById('stFeeInput').value = '';
     document.getElementById('stPayTypeInput').value = '선납';
+    document.getElementById('stEndDateInput').value = '';
     addSchedRowUI(todayDow, '16:00', '18:00');
   } else {
     const st = state.students.find(s => s.id === stId);
@@ -2450,6 +2482,7 @@ window.openStudentModal = function(stId) {
     document.getElementById('stTargetInput').value = st.targetCount || 4;
     document.getElementById('stFeeInput').value = st.fee || 0;
     document.getElementById('stPayTypeInput').value = st.payType || '선납';
+    document.getElementById('stEndDateInput').value = st.endDate || '';
     (st.schedules || []).forEach(sc => addSchedRowUI(sc.dow, sc.start, sc.end));
 
     leftAct.innerHTML = `
@@ -2488,6 +2521,7 @@ document.getElementById('btnSaveStudent').onclick = () => {
   const payType = document.getElementById('stPayTypeInput').value;
   const targetCount = Math.max(1, cleanNum(document.getElementById('stTargetInput').value) || 4);
   const fee = cleanNum(document.getElementById('stFeeInput').value);
+  const endDate = (document.getElementById('stEndDateInput').value || '').trim();
 
   if (id) {
     const st = state.students.find(s => s.id === id);
@@ -2498,6 +2532,7 @@ document.getElementById('btnSaveStudent').onclick = () => {
       st.targetCount = targetCount;
       st.fee = fee;
       st.payType = payType;
+      st.endDate = endDate;
       st.schedules = schedules;
     }
   } else {
@@ -2509,6 +2544,7 @@ document.getElementById('btnSaveStudent').onclick = () => {
       targetCount,
       fee,
       payType,
+      endDate,
       prepaidSettleDates: null,
       status: 'active',
       sentCheck: false,
@@ -2522,7 +2558,7 @@ document.getElementById('btnSaveStudent').onclick = () => {
   renderAll();
 };
 
-// ================= 2. 시간표 탭 =================
+// ================= 2. 시간표 탭 (종료 예정일 이후 블록 제외 포함) =================
 let ttView = 'block';
 let ttMode = 'actual';
 let currentMonday = getMonday(new Date());
@@ -2560,6 +2596,7 @@ function renderTimetableTab() {
   activeStudents.forEach(st => {
     const colorIdx = getStudentColorIndex(st.id);
     const allLogs = isFixed ? [] : [...(st.currentLogs || []), ...(st.archivedLogs || [])];
+    const endDate = (st.endDate || '').trim();
 
     (st.schedules || []).forEach(sc => {
       const dayIdx = Number(sc.dow);
@@ -2570,6 +2607,9 @@ function renderTimetableTab() {
 
       if (!isFixed) {
         const iso = toIsoDate(weekDates[dayIdx]);
+        // 수업 종료 예정일이 지정되어 있고 그 날짜를 넘어섰다면 시간표 블록에서 제외!
+        if (endDate && iso > endDate) return;
+
         const cancelLog = allLogs.find(l => l.date === iso && (l.type === '휴강' || l.type === '결강'));
         if (cancelLog) {
           canceledType = cancelLog.type;
@@ -2593,6 +2633,7 @@ function renderTimetableTab() {
 
     if (!isFixed) {
       allLogs.filter(l => l.type === '보강' || l.type === '보강예정').forEach(l => {
+        if (endDate && l.date > endDate) return;
         const idx = weekDates.findIndex(wd => toIsoDate(wd) === l.date);
         if (idx >= 0) {
           const mStart = l.start || st.schedules?.[0]?.start || '14:00';
@@ -2709,7 +2750,7 @@ document.getElementById('btnPrevWeek').onclick = () => { currentMonday.setDate(c
 document.getElementById('btnNextWeek').onclick = () => { currentMonday.setDate(currentMonday.getDate() + 7); renderTimetableTab(); };
 document.getElementById('btnThisWeek').onclick = () => { currentMonday = getMonday(new Date()); renderTimetableTab(); };
 
-// ================= 3. 가계부 탭 (보강예정 및 다음 1주차 입금일 반영) =================
+// ================= 3. 가계부 탭 (보강예정·종료예정일·다음 1주차 입금일 반영) =================
 let finMonthDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedFinDate = todayIso;
 let finView = 'calendar';
@@ -2722,6 +2763,9 @@ function computeExpectedIncomes() {
   activeStudents.forEach(st => {
     const dows = (st.schedules || []).map(sc => Number(sc.dow));
     const allLogs = [...(st.currentLogs || []), ...(st.archivedLogs || [])];
+    const endDate = (st.endDate || '').trim();
+
+    if (endDate && endDate < todayIso) return;
 
     const plannedMakeupDates = new Set(
       allLogs.filter(l => l.type === '보강예정').map(l => l.date)
@@ -2750,8 +2794,10 @@ function computeExpectedIncomes() {
 
     for (let step = 0; step < 90 && cycleAdded < 2; step++) {
       const iso = toIsoDate(cursor);
-      const ourDow = (cursor.getDay() + 6) % 7;
+      // 종료 예정일 이후라면 더 이상 예상 입금을 잡지 않고 중단!
+      if (endDate && iso > endDate) break;
 
+      const ourDow = (cursor.getDay() + 6) % 7;
       const isRegularClass = dows.includes(ourDow) && !skipDates.has(iso);
       const isPlannedMakeup = plannedMakeupDates.has(iso);
 
@@ -2847,7 +2893,8 @@ function renderFinanceTab() {
     briefHtml += `<div style="color:var(--mute);">내역 없음</div>`;
   } else {
     bIncs.forEach(x => {
-      const label = x.isExtraIncome ? `[별도수입] ${x.studentName}` : `[과외비] ${x.studentName}`;
+      const cntTxt = (!x.isExtraIncome && Number(x.addedCount) > 0) ? ` (${x.addedCount}회분)` : '';
+      const label = x.isExtraIncome ? `[별도수입] ${x.studentName}` : `[과외비] ${x.studentName}${cntTxt}`;
       briefHtml += `<div style="color:var(--blue); margin-bottom:4px;">🔵 ${label} +${fmtMoney(x.amount)} <button type="button" class="icon-btn" style="height:24px; padding:0 6px; font-size:11px;" onclick="deleteIncome('${x.id}')">삭제</button></div>`;
     });
     bExps.forEach(x => {
@@ -2865,15 +2912,18 @@ function renderFinanceTab() {
   } else {
     listWrap.innerHTML = monthIncomes
       .sort((a, b) => b.date.localeCompare(a.date))
-      .map(inc => `
-        <div class="settle-queue-item">
-          <div><b>${inc.date}</b> · ${inc.studentName} ${inc.isExtraIncome ? '<span class="badge mute">별도수입</span>' : ''}</div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <b style="color:var(--acc);">+${fmtMoney(inc.amount)}</b>
-            <button type="button" class="icon-btn" onclick="deleteIncome('${inc.id}')">삭제</button>
+      .map(inc => {
+        const cntTxt = (!inc.isExtraIncome && Number(inc.addedCount) > 0) ? ` (${inc.addedCount}회)` : '';
+        return `
+          <div class="settle-queue-item">
+            <div><b>${inc.date}</b> · ${inc.studentName}${cntTxt} ${inc.isExtraIncome ? '<span class="badge mute">별도수입</span>' : ''}</div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <b style="color:var(--acc);">+${fmtMoney(inc.amount)}</b>
+              <button type="button" class="icon-btn" onclick="deleteIncome('${inc.id}')">삭제</button>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
   }
 }
 
@@ -2951,10 +3001,9 @@ let pCalMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 function getSettlementReadyStudents() {
   return state.students.filter(s => {
     if (s.status === 'ended') return false;
-    const base = Number(s.targetCount) || 4;
-    const cnt = getCountableLogs(s).length;
+    const status = getStudentCycleStatus(s);
     const hasPrepaidFinished = Array.isArray(s.prepaidSettleDates) && s.prepaidSettleDates.length > 0;
-    return cnt >= base || hasPrepaidFinished;
+    return status.cnt >= status.effTarget || status.cnt >= status.base || hasPrepaidFinished;
   });
 }
 
@@ -2977,12 +3026,11 @@ function renderSettlementTab() {
     qList.innerHTML = `<div style="font-size:13px; color:var(--mute);">대기 학생 없음</div>`;
   } else {
     qList.innerHTML = readyStudents.map(st => {
-      const base = Number(st.targetCount) || 4;
-      const counted = getCountableLogs(st);
+      const status = getStudentCycleStatus(st);
       const isPrepaidRolled = Array.isArray(st.prepaidSettleDates) && st.prepaidSettleDates.length > 0;
       const statusLabel = isPrepaidRolled
         ? `${st.prepaidSettleDates.length}회 완료 · 선납완료`
-        : `${counted.length}/${base}회 · ${st.payType}`;
+        : `${status.cnt}/${status.effTarget}회 · ${st.payType}`;
 
       return `
         <div class="settle-queue-item ${st.sentCheck ? 'sent' : ''}">
@@ -3025,12 +3073,12 @@ window.dismissPrepaidSettle = function(stId) {
 window.loadStudentIntoPrompt = function(stId) {
   const st = state.students.find(s => s.id === stId);
   if (!st) return;
-  const base = Number(st.targetCount) || 4;
+  const status = getStudentCycleStatus(st);
   const isPrepaidRolled = Array.isArray(st.prepaidSettleDates) && st.prepaidSettleDates.length > 0;
 
   const countedDates = isPrepaidRolled
     ? [...st.prepaidSettleDates].sort()
-    : getCountableLogs(st).map(l => l.date).sort().slice(0, base);
+    : getCountableLogs(st).map(l => l.date).sort().slice(0, status.effTarget);
 
   state.promptDraft.name = st.name;
   state.promptDraft.hon = st.hon || '어머님';
