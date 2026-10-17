@@ -285,6 +285,22 @@ main {
   font-weight: 700;
 }
 
+  /* 메인 카드: 휴강 시 회색/흐림 처리 */
+.st-card.is-skip-day {
+  opacity: 0.52;
+  background: var(--field-sub);
+  border-style: dashed;
+}
+.st-card.is-skip-day .st-name {
+  text-decoration: line-through;
+  color: var(--mute);
+}
+/* 시간표(변동 반영): 지나간 수업(또는 완료된 수업) 취소선 없이 흐리게 */
+.tt-pill.is-past, .tt-grid-event.is-past {
+  opacity: 0.42;
+  filter: grayscale(25%);
+}
+
 /* 1. 메인 탭 & 하단 탭 위 원형 플로팅(+) 버튼 */
 .student-toolbar {
   display: flex;
@@ -1658,31 +1674,61 @@ function getStudentColorIndex(stId) {
 
 function getActiveScheduleForStudent(st) {
   const scheds = st.schedules || [];
-  if (!scheds.length) return null;
-  if (scheds.length === 1) return scheds[0];
+  const allLogs = [...(st.currentLogs || []), ...(st.archivedLogs || [])];
+  const now = new Date();
 
-  // [핵심 수정] 오늘이 정규 수업 요일 중 하나라면, 방금 결강/정규를 눌렀더라도 다른 요일로 이동시키지 않고 오늘 요일에 그대로 고정!
+  // 1순위: 오늘 날짜에 잡힌 보강(보강예정/보강) 또는 오늘 정규 수업 확인
+  const todayMakeup = allLogs.find(l => l.date === todayIso && (l.type === '보강예정' || l.type === '보강'));
+  if (todayMakeup) {
+    return {
+      dow: todayDow,
+      start: todayMakeup.start || scheds[0]?.start || '14:00',
+      end: todayMakeup.end || scheds[0]?.end || '16:00',
+      targetDate: todayIso,
+      isMakeupSlot: true,
+      isSkipSlot: false
+    };
+  }
+
   const todayMatched = scheds.filter(sc => Number(sc.dow) === todayDow).sort((a, b) => a.start.localeCompare(b.start));
   if (todayMatched.length) {
-    return todayMatched[0];
+    const isSkip = allLogs.some(l => l.date === todayIso && l.type === '휴강');
+    return { ...todayMatched[0], targetDate: todayIso, isMakeupSlot: false, isSkipSlot: isSkip };
   }
 
-  const existingDates = new Set([
-    ...(st.currentLogs || []).map(l => l.date),
-    ...(st.archivedLogs || []).map(l => l.date)
-  ]);
+  // 2순위: 내일부터 6일 이내에 돌아오는 가장 가까운 '보강예정' 또는 미기록 '정규 수업' 탐색
+  const existingCountedDates = new Set(
+    allLogs.filter(l => l.type === '정규' || l.type === '보강' || l.type === '결강').map(l => l.date)
+  );
 
-  const now = new Date();
-  for (let offset = 1; offset <= 7; offset++) {
+  for (let offset = 1; offset <= 6; offset++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+    const iso = toIsoDate(d);
     const dow = (d.getDay() + 6) % 7;
+
+    // 해당 날짜에 보강예정이 잡혀 있으면 그 요일로 카드 이동!
+    const plannedMakeup = allLogs.find(l => l.date === iso && (l.type === '보강예정' || l.type === '보강'));
+    if (plannedMakeup) {
+      return {
+        dow,
+        start: plannedMakeup.start || scheds[0]?.start || '14:00',
+        end: plannedMakeup.end || scheds[0]?.end || '16:00',
+        targetDate: iso,
+        isMakeupSlot: true,
+        isSkipSlot: false
+      };
+    }
+
+    // 해당 요일에 정규 수업이 있고 아직 완료 기록이 없으면 배치 (휴강이면 회색 표시를 위해 유지)
     const matched = scheds.filter(sc => Number(sc.dow) === dow).sort((a, b) => a.start.localeCompare(b.start));
-    if (matched.length) {
-      const iso = toIsoDate(d);
-      if (!existingDates.has(iso)) return matched[0];
+    if (matched.length && !existingCountedDates.has(iso)) {
+      const isSkip = allLogs.some(l => l.date === iso && l.type === '휴강');
+      return { ...matched[0], targetDate: iso, isMakeupSlot: false, isSkipSlot: isSkip };
     }
   }
-  return scheds[0];
+
+  if (!scheds.length) return null;
+  return { ...scheds[0], targetDate: null, isMakeupSlot: false, isSkipSlot: false };
 }
 
 function getSmartRegularDate(st, preferDow = null) {
@@ -1916,34 +1962,48 @@ window.quickAddRegularLog = function(stId, type, preferDow = null) {
   const st = state.students.find(s => s.id === stId);
   if (!st) return;
 
-  // 1) 오늘 날짜(todayIso)로 이미 찍힌 기록이 있는지 먼저 확인
-  const curIdx = (st.currentLogs || []).findIndex(
-    l => l.date === todayIso && (l.type === '정규' || l.type === '결강')
-  );
+  // 오늘 날짜에 '보강예정'이 있는데 [정규]를 누른 경우 -> '보강(완료)'으로 즉시 전환!
+  const plannedIdx = (st.currentLogs || []).findIndex(l => l.date === todayIso && l.type === '보강예정');
+  if (plannedIdx >= 0 && type === '정규') {
+    st.currentLogs[plannedIdx].type = '보강';
+    syncStudentRollover(st);
+    saveState();
+    renderAll();
+    return;
+  }
 
+  // 오늘 날짜로 이미 찍힌 정규/보강/결강 기록이 있는지 확인 (재클릭 시 취소 또는 변경)
+  const curIdx = (st.currentLogs || []).findIndex(
+    l => l.date === todayIso && (l.type === '정규' || l.type === '결강' || l.type === '보강')
+  );
   if (curIdx >= 0) {
-    // 같은 버튼을 한 번 더 누르면 -> 즉시 취소(삭제)
-    if (st.currentLogs[curIdx].type === type) {
+    const curLog = st.currentLogs[curIdx];
+    if (curLog.type === '보강' && type === '정규') {
+      // 보강 완료 상태에서 다시 누르면 '보강예정'으로 되돌림
+      curLog.type = '보강예정';
+    } else if (curLog.type === type) {
       st.currentLogs.splice(curIdx, 1);
     } else {
-      // 다른 버튼을 누르면 -> 즉시 변경 (예: 정규 -> 결강)
-      st.currentLogs[curIdx].type = type;
+      curLog.type = type;
     }
     saveState();
     renderAll();
     return;
   }
 
-  // (선납 학생이 오늘 4회차를 채워 archivedLogs로 자동 이월된 직후 다시 눌러 취소하려는 경우까지 대비)
+  // 자동 이월된 기록(archivedLogs)에 오늘 기록이 있는 경우 취소/변경 처리
   const archIdx = (st.archivedLogs || []).findIndex(
-    l => l.date === todayIso && (l.type === '정규' || l.type === '결강')
+    l => l.date === todayIso && (l.type === '정규' || l.type === '결강' || l.type === '보강')
   );
   if (archIdx >= 0) {
-    if (st.archivedLogs[archIdx].type === type) {
+    const archLog = st.archivedLogs[archIdx];
+    if (archLog.type === type || (archLog.type === '보강' && type === '정규')) {
       const base = Math.max(1, Number(st.targetCount) || 4);
-      // 방금 이월된 묶음을 다시 현재 주기로 되돌리고 오늘 기록 취소
       const restored = st.archivedLogs.splice(-base);
-      const filtered = restored.filter(l => !(l.date === todayIso && l.type === type));
+      const filtered = restored.map(l => {
+        if (l.date === todayIso && l.type === '보강' && type === '정규') return { ...l, type: '보강예정' };
+        return l;
+      }).filter(l => !(l.date === todayIso && l.type === type));
       st.currentLogs.push(...filtered);
       st.prepaidSettleDates = null;
     } else {
@@ -1954,7 +2014,19 @@ window.quickAddRegularLog = function(stId, type, preferDow = null) {
     return;
   }
 
-  // 2) 오늘 기록이 아직 없다면 -> 기존처럼 정규 수업일 계산하여 추가
+  // 만약 해당 슬롯이 다가오는 '보강예정' 날이고 미리 완료 버튼을 누른 경우
+  const activeSc = getActiveScheduleForStudent(st);
+  if (activeSc && activeSc.isMakeupSlot && activeSc.targetDate) {
+    const pIdx = (st.currentLogs || []).findIndex(l => l.date === activeSc.targetDate && l.type === '보강예정');
+    if (pIdx >= 0 && type === '정규') {
+      st.currentLogs[pIdx].type = '보강';
+      syncStudentRollover(st);
+      saveState();
+      renderAll();
+      return;
+    }
+  }
+
   const targetDate = getSmartRegularDate(st, preferDow);
   st.currentLogs.push({
     id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -2430,34 +2502,48 @@ function getMonday(d) {
 
 function renderTimetableTab() {
   const container = document.getElementById('timetableContainer');
+  const weekNav = document.getElementById('ttWeekNav');
+  const isFixed = (ttMode === 'fixed');
+
+  // '정규만' 모드일 때는 주차 이동 버튼을 숨기고 매주 동일한 고정 시간표만 가볍게 렌더링!
+  weekNav.style.display = isFixed ? 'none' : 'flex';
+
   const weekDates = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(currentMonday);
-    d.setDate(d.getDate() + i);
-    weekDates.push(d);
+  if (!isFixed) {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(currentMonday);
+      d.setDate(d.getDate() + i);
+      weekDates.push(d);
+    }
+    const firstD = weekDates[0], lastD = weekDates[6];
+    document.getElementById('ttWeekLabel').textContent =
+      `${firstD.getMonth() + 1}.${firstD.getDate()} ~ ${lastD.getMonth() + 1}.${lastD.getDate()}`;
   }
-  const firstD = weekDates[0], lastD = weekDates[6];
-  document.getElementById('ttWeekLabel').textContent =
-    `${firstD.getMonth() + 1}.${firstD.getDate()} ~ ${lastD.getMonth() + 1}.${lastD.getDate()}`;
 
   const dayEvents = [[], [], [], [], [], [], []];
   const activeStudents = state.students.filter(s => s.status !== 'ended');
 
   activeStudents.forEach(st => {
-    const allLogs = [...(st.currentLogs || []), ...(st.archivedLogs || [])];
     const colorIdx = getStudentColorIndex(st.id);
+    const allLogs = isFixed ? [] : [...(st.currentLogs || []), ...(st.archivedLogs || [])];
 
     (st.schedules || []).forEach(sc => {
       const dayIdx = Number(sc.dow);
       if (dayIdx < 0 || dayIdx > 6) return;
-      const iso = toIsoDate(weekDates[dayIdx]);
 
       let canceledType = null;
-      if (ttMode === 'actual') {
-        const cancelLog = allLogs.find(
-          l => l.date === iso && (l.type === '휴강' || l.type === '결강')
-        );
-        if (cancelLog) canceledType = cancelLog.type;
+      let isPast = false;
+
+      if (!isFixed) {
+        const iso = toIsoDate(weekDates[dayIdx]);
+        const cancelLog = allLogs.find(l => l.date === iso && (l.type === '휴강' || l.type === '결강'));
+        if (cancelLog) {
+          canceledType = cancelLog.type;
+        } else {
+          // 이미 지나간 날짜이거나, 오늘 이미 정규/보강 완료를 누른 수업이면 취소선 없이 흐리게 처리!
+          const doneToday = (iso === todayIso) && allLogs.some(l => l.date === iso && (l.type === '정규' || l.type === '보강'));
+          if (iso < todayIso || doneToday) isPast = true;
+        }
       }
 
       dayEvents[dayIdx].push({
@@ -2466,27 +2552,28 @@ function renderTimetableTab() {
         colorIdx,
         start: sc.start,
         end: sc.end,
-        isMakeup: false,
         isPlannedMakeup: false,
-        canceledType
+        canceledType,
+        isPast
       });
     });
 
-    if (ttMode === 'actual') {
+    if (!isFixed) {
       allLogs.filter(l => l.type === '보강' || l.type === '보강예정').forEach(l => {
         const idx = weekDates.findIndex(wd => toIsoDate(wd) === l.date);
         if (idx >= 0) {
           const mStart = l.start || st.schedules?.[0]?.start || '14:00';
           const mEnd = l.end || st.schedules?.[0]?.end || '16:00';
+          const isPast = (l.date < todayIso) || (l.type === '보강' && l.date <= todayIso);
           dayEvents[idx].push({
             studentId: st.id,
             studentName: st.name,
             colorIdx,
             start: mStart,
             end: mEnd,
-            isMakeup: l.type === '보강',
             isPlannedMakeup: l.type === '보강예정',
-            canceledType: null
+            canceledType: null,
+            isPast
           });
         }
       });
@@ -2497,31 +2584,32 @@ function renderTimetableTab() {
 
   if (ttView === 'block') {
     let html = `<div class="tt-block-board">`;
-    weekDates.forEach((d, idx) => {
-      const iso = toIsoDate(d);
-      const isToday = iso === todayIso;
+    for (let idx = 0; idx < 7; idx++) {
       const colClass = idx === 5 ? 'sat' : (idx === 6 ? 'sun' : '');
+      let headHtml = '';
+      if (isFixed) {
+        const isTodayDow = (idx === todayDow);
+        headHtml = `<div class="tt-day-head"><span class="dnum ${isTodayDow ? 'today' : ''}" style="font-size:13px;">${DOW_NAMES[idx]}</span></div>`;
+      } else {
+        const d = weekDates[idx];
+        const isToday = toIsoDate(d) === todayIso;
+        headHtml = `<div class="tt-day-head"><span class="dow">${DOW_NAMES[idx]}</span><span class="dnum ${isToday ? 'today' : ''}">${d.getDate()}</span></div>`;
+      }
+
       const pills = dayEvents[idx].map(ev => {
         const cls = [
           'tt-pill',
           `p-color-${ev.colorIdx}`,
           ev.isPlannedMakeup ? 'is-planned-makeup' : '',
           ev.canceledType === '휴강' ? 'is-skip' : '',
-          ev.canceledType === '결강' ? 'is-absent' : ''
+          ev.canceledType === '결강' ? 'is-absent' : '',
+          (!ev.canceledType && ev.isPast) ? 'is-past' : ''
         ].join(' ');
         return `<div class="${cls}" style="cursor:pointer;" onclick="openStudentCalendar('${ev.studentId}')">${fmtShortTime(ev.start)} ${ev.studentName}</div>`;
       }).join('');
 
-      html += `
-        <div class="tt-day-col ${colClass}">
-          <div class="tt-day-head">
-            <span class="dow">${DOW_NAMES[idx]}</span>
-            <span class="dnum ${isToday ? 'today' : ''}">${d.getDate()}</span>
-          </div>
-          ${pills}
-        </div>
-      `;
-    });
+      html += `<div class="tt-day-col ${colClass}">${headHtml}${pills}</div>`;
+    }
     html += `</div>`;
     container.innerHTML = html;
   } else {
@@ -2531,7 +2619,8 @@ function renderTimetableTab() {
     }
 
     let colsHtml = '';
-    weekDates.forEach((d, idx) => {
+    for (let idx = 0; idx < 7; idx++) {
+      const headLabel = isFixed ? DOW_NAMES[idx] : `${DOW_NAMES[idx]} ${weekDates[idx].getDate()}`;
       const evHtml = dayEvents[idx].map(ev => {
         let [sh, sm] = ev.start.split(':').map(Number);
         let [eh, em] = ev.end.split(':').map(Number);
@@ -2546,7 +2635,8 @@ function renderTimetableTab() {
           `p-color-${ev.colorIdx}`,
           ev.isPlannedMakeup ? 'is-planned-makeup' : '',
           ev.canceledType === '휴강' ? 'is-skip' : '',
-          ev.canceledType === '결강' ? 'is-absent' : ''
+          ev.canceledType === '결강' ? 'is-absent' : '',
+          (!ev.canceledType && ev.isPast) ? 'is-past' : ''
         ].join(' ');
         return `<div class="${cls}" style="top:${topPx}px; height:${heightPx}px; cursor:pointer;" onclick="openStudentCalendar('${ev.studentId}')">
           <div>${ev.studentName}</div>
@@ -2556,11 +2646,11 @@ function renderTimetableTab() {
 
       colsHtml += `
         <div class="tt-grid-day-col">
-          <div class="tt-grid-day-head"><span>${DOW_NAMES[idx]} ${d.getDate()}</span></div>
+          <div class="tt-grid-day-head"><span>${headLabel}</span></div>
           <div class="tt-grid-body">${evHtml}</div>
         </div>
       `;
-    });
+    }
 
     container.innerHTML = `<div class="tt-grid-board"><div class="tt-grid-time-col">${hoursHtml}</div>${colsHtml}</div>`;
   }
