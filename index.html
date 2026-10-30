@@ -2781,44 +2781,66 @@ function computeExpectedIncomes() {
       l => l.date === todayIso && (l.type === '정규' || l.type === '보강' || l.type === '결강')
     );
 
-    let classesUntilPay = status.needPrepay
-      ? 1
-      : Math.max(0, status.effTarget - status.cnt) + 1;
-
+    // 1. 오늘(또는 내일)부터 최대 90일 동안 예정된 실제 수업 날짜 목록을 먼저 순서대로 추출
+    const upcomingClassDates = [];
     let cursor = new Date(startSim.getFullYear(), startSim.getMonth(), startSim.getDate());
     if (recordedToday) {
       cursor.setDate(cursor.getDate() + 1);
     }
 
-    let cycleAdded = 0;
-
-    for (let step = 0; step < 90 && cycleAdded < 2; step++) {
+    for (let step = 0; step < 90; step++) {
       const iso = toIsoDate(cursor);
-      // 종료 예정일 이후라면 더 이상 예상 입금을 잡지 않고 중단!
+      // 종료 예정일이 설정되어 있으면 그 날짜 이후의 수업은 아예 존재하지 않는 것으로 절단
       if (endDate && iso > endDate) break;
 
       const ourDow = (cursor.getDay() + 6) % 7;
       const isRegularClass = dows.includes(ourDow) && !skipDates.has(iso);
       const isPlannedMakeup = plannedMakeupDates.has(iso);
 
-      if (isRegularClass || isPlannedMakeup) {
-        const sessionCountToday = (isRegularClass ? 1 : 0) + (isPlannedMakeup ? 1 : 0);
-        for (let s = 0; s < sessionCountToday; s++) {
-          classesUntilPay--;
-          if (classesUntilPay <= 0 && cycleAdded < 2) {
-            expected.push({
-              date: iso,
-              studentName: st.name,
-              amount: Number(st.fee) || 0
-            });
-            classesUntilPay = status.base;
-            cycleAdded++;
-          }
-        }
-      }
+      if (isRegularClass) upcomingClassDates.push(iso);
+      if (isPlannedMakeup) upcomingClassDates.push(iso);
+
       cursor.setDate(cursor.getDate() + 1);
     }
+
+    if (!upcomingClassDates.length) return;
+
+    // 2. 현재 주기 완료까지 남은 수업 횟수
+    const remainingInCurrentCycle = Math.max(0, status.effTarget - status.cnt);
+
+    // [핵심] 선납 학생인데, 종료 예정일까지 남은 전체 수업 수(upcomingClassDates.length)가
+    // 이미 납부한 현재 주기 잔여 횟수(remainingInCurrentCycle) 이하라면 -> 추가 입금 받을 일이 없으므로 즉시 종료!
+    if (endDate && st.payType === '선납' && !status.needPrepay && upcomingClassDates.length <= remainingInCurrentCycle) {
+      return;
+    }
+
+    // 3. 예상 입금이 발생하는 수업 회차 인덱스 계산 (0부터 시작하는 배열 인덱스 기준)
+    // - 선납 미납 대기(needPrepay): 첫 수업날(index 0)에 입금 예상
+    // - 일반 선납: 현재 주기 남은 횟수를 다 채운 '다음 주기 첫 수업날'(index = remainingInCurrentCycle)에 입금 예상
+    //   (위에서 upcomingClassDates를 endDate까지만 잘랐으므로, 다음 주기 첫 수업날이 endDate 이후라면 배열 범위를 벗어나 자연스럽게 제외됨!)
+    // - 후불(미납): 현재 주기가 끝나는 마지막 수업날 또는 다음 첫 수업날 정산하되, 종료일이 있으면 현재 주기까지만 반영
+    let targetIdx = status.needPrepay ? 0 : remainingInCurrentCycle;
+    let cycleAdded = 0;
+
+    while (targetIdx < upcomingClassDates.length && cycleAdded < 2) {
+      // 만약 종료 예정일(endDate)이 설정된 상태에서, 새 주기를 시작하는 입금일인데
+      // 그 날짜 이후 남은 수업이 기준 회차(base)보다 적거나 마지막 날이라면 과외비 전액이 찍히지 않도록 차단
+      const remainingSessionsFromPayDate = upcomingClassDates.length - targetIdx;
+      if (endDate && st.payType === '선납' && !status.needPrepay && remainingSessionsFromPayDate <= 1) {
+        break;
+      }
+
+      expected.push({
+        date: upcomingClassDates[targetIdx],
+        studentName: st.name,
+        amount: Number(st.fee) || 0
+      });
+
+      targetIdx += status.base;
+      cycleAdded++;
+    }
   });
+
   return expected;
 }
 
