@@ -1352,9 +1352,15 @@ main {
       </div>
     </div>
     <div class="form-row">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <label style="margin:0;">수업 요일·시간 (24시간제, 예: 19:00)</label>
-        <button type="button" class="btn-ghost" id="btnAddSchedRow" style="height:30px; padding:0 10px; font-size:12px;">+ 추가</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
+        <label style="margin:0;">수업 요일·시간 (24시간제)</label>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span id="schedEffDateWrap" style="display:none; align-items:center; gap:4px; font-size:11.5px; color:var(--mute);">
+            적용일:
+            <input type="date" id="stSchedFromInput" style="width:128px; height:30px; font-size:12px; padding:0 6px;">
+          </span>
+          <button type="button" class="btn-ghost" id="btnAddSchedRow" style="height:30px; padding:0 10px; font-size:12px;">+ 추가</button>
+        </div>
       </div>
       <div id="schedRowsContainer"></div>
     </div>
@@ -1717,13 +1723,27 @@ function getStudentColorIndex(stId) {
   return Math.abs(hash) % 10;
 }
 
+function getSchedulesForDate(st, iso = todayIso) {
+  const hist = st.scheduleHistory;
+  if (!Array.isArray(hist) || !hist.length) {
+    return st.schedules || [];
+  }
+  let active = hist[0].schedules || st.schedules || [];
+  for (let i = 0; i < hist.length; i++) {
+    if ((hist[i].from || '0000-00-00') <= iso) {
+      active = hist[i].schedules || [];
+    }
+  }
+  return active;
+}
+
 function getActiveScheduleForStudent(st) {
-  const scheds = st.schedules || [];
   const allLogs = [...(st.currentLogs || []), ...(st.archivedLogs || [])];
   const endDate = (st.endDate || '').trim();
   const now = new Date();
+  const todayScheds = getSchedulesForDate(st, todayIso);
 
-  const todayMatched = scheds.filter(sc => Number(sc.dow) === todayDow).sort((a, b) => a.start.localeCompare(b.start));
+  const todayMatched = todayScheds.filter(sc => Number(sc.dow) === todayDow).sort((a, b) => a.start.localeCompare(b.start));
   const isTodaySkip = allLogs.some(l => l.date === todayIso && l.type === '휴강');
   if (todayMatched.length && isTodaySkip && (!endDate || todayIso <= endDate)) {
     return { ...todayMatched[0], targetDate: todayIso, isMakeupSlot: false, isSkipSlot: true };
@@ -1733,8 +1753,8 @@ function getActiveScheduleForStudent(st) {
   if (todayMakeup && (!endDate || todayIso <= endDate)) {
     return {
       dow: todayDow,
-      start: todayMakeup.start || scheds[0]?.start || '14:00',
-      end: todayMakeup.end || scheds[0]?.end || '16:00',
+      start: todayMakeup.start || todayScheds[0]?.start || '14:00',
+      end: todayMakeup.end || todayScheds[0]?.end || '16:00',
       targetDate: todayIso,
       isMakeupSlot: true,
       isSkipSlot: false
@@ -1754,8 +1774,9 @@ function getActiveScheduleForStudent(st) {
     const iso = toIsoDate(d);
     if (endDate && iso > endDate) continue;
     const dow = (d.getDay() + 6) % 7;
+    const dayScheds = getSchedulesForDate(st, iso);
 
-    const matched = scheds.filter(sc => Number(sc.dow) === dow).sort((a, b) => a.start.localeCompare(b.start));
+    const matched = dayScheds.filter(sc => Number(sc.dow) === dow).sort((a, b) => a.start.localeCompare(b.start));
     const isSkip = allLogs.some(l => l.date === iso && l.type === '휴강');
     if (matched.length && isSkip) {
       return { ...matched[0], targetDate: iso, isMakeupSlot: false, isSkipSlot: true };
@@ -1765,8 +1786,8 @@ function getActiveScheduleForStudent(st) {
     if (plannedMakeup) {
       return {
         dow,
-        start: plannedMakeup.start || scheds[0]?.start || '14:00',
-        end: plannedMakeup.end || scheds[0]?.end || '16:00',
+        start: plannedMakeup.start || dayScheds[0]?.start || '14:00',
+        end: plannedMakeup.end || dayScheds[0]?.end || '16:00',
         targetDate: iso,
         isMakeupSlot: true,
         isSkipSlot: false
@@ -1778,16 +1799,11 @@ function getActiveScheduleForStudent(st) {
     }
   }
 
-  if (!scheds.length) return null;
-  return { ...scheds[0], targetDate: null, isMakeupSlot: false, isSkipSlot: false };
+  if (!todayScheds.length) return null;
+  return { ...todayScheds[0], targetDate: null, isMakeupSlot: false, isSkipSlot: false };
 }
 
 function getSmartRegularDate(st, preferDow = null) {
-  const dows = (preferDow !== null && preferDow !== undefined)
-    ? [Number(preferDow)]
-    : (st.schedules || []).map(sc => Number(sc.dow));
-  if (!dows.length) return todayIso;
-
   const existingDates = new Set([
     ...(st.currentLogs || []).map(l => l.date),
     ...(st.archivedLogs || []).map(l => l.date)
@@ -1796,19 +1812,21 @@ function getSmartRegularDate(st, preferDow = null) {
   const now = new Date();
   for (let back = 0; back <= 7; back++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
+    const iso = toIsoDate(d);
     const ourDow = (d.getDay() + 6) % 7;
-    if (dows.includes(ourDow)) {
-      const iso = toIsoDate(d);
-      if (!existingDates.has(iso)) return iso;
-    }
+    const dows = (preferDow !== null && preferDow !== undefined)
+      ? [Number(preferDow)]
+      : getSchedulesForDate(st, iso).map(sc => Number(sc.dow));
+    if (dows.includes(ourDow) && !existingDates.has(iso)) return iso;
   }
   for (let fwd = 1; fwd <= 14; fwd++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + fwd);
+    const iso = toIsoDate(d);
     const ourDow = (d.getDay() + 6) % 7;
-    if (dows.includes(ourDow)) {
-      const iso = toIsoDate(d);
-      if (!existingDates.has(iso)) return iso;
-    }
+    const dows = (preferDow !== null && preferDow !== undefined)
+      ? [Number(preferDow)]
+      : getSchedulesForDate(st, iso).map(sc => Number(sc.dow));
+    if (dows.includes(ourDow) && !existingDates.has(iso)) return iso;
   }
   return todayIso;
 }
@@ -2285,7 +2303,8 @@ function renderStudentCalendarModal() {
   for (let d = 1; d <= lastDay; d++) {
     const iso = `${y}-${pad(m + 1)}-${pad(d)}`;
     const ourDow = (new Date(y, m, d).getDay() + 6) % 7;
-    const isRegDay = regDows.includes(ourDow) && (!endDate || iso <= endDate);
+    const regDowsOnDate = getSchedulesForDate(st, iso).map(sc => Number(sc.dow));
+    const isRegDay = regDowsOnDate.includes(ourDow) && (!endDate || iso <= endDate);
 
     const cell = document.createElement('div');
     cell.className = [
@@ -2477,6 +2496,7 @@ window.openStudentModal = function(stId) {
   const leftAct = document.getElementById('stModalLeftActions');
   const subjWrap = document.getElementById('stSubjectWrap');
   const topGrid = document.getElementById('stTopRowGrid');
+  const effWrap = document.getElementById('schedEffDateWrap');
   wrap.innerHTML = '';
   leftAct.innerHTML = '';
 
@@ -2494,6 +2514,7 @@ window.openStudentModal = function(stId) {
     document.getElementById('stFeeInput').value = '';
     document.getElementById('stPayTypeInput').value = '선납';
     document.getElementById('stEndDateInput').value = '';
+    effWrap.style.display = 'none';
     addSchedRowUI(todayDow, '16:00', '18:00');
   } else {
     const st = state.students.find(s => s.id === stId);
@@ -2507,7 +2528,13 @@ window.openStudentModal = function(stId) {
     document.getElementById('stFeeInput').value = st.fee || 0;
     document.getElementById('stPayTypeInput').value = st.payType || '선납';
     document.getElementById('stEndDateInput').value = st.endDate || '';
-    (st.schedules || []).forEach(sc => addSchedRowUI(sc.dow, sc.start, sc.end));
+    effWrap.style.display = 'inline-flex';
+    document.getElementById('stSchedFromInput').value = todayIso;
+
+    const latestScheds = (Array.isArray(st.scheduleHistory) && st.scheduleHistory.length)
+      ? st.scheduleHistory[st.scheduleHistory.length - 1].schedules
+      : (st.schedules || []);
+    latestScheds.forEach(sc => addSchedRowUI(sc.dow, sc.start, sc.end));
 
     leftAct.innerHTML = `
       <button type="button" class="btn-ghost" onclick="endStudent('${st.id}')">수업 종료</button>
@@ -2546,6 +2573,7 @@ document.getElementById('btnSaveStudent').onclick = () => {
   const targetCount = Math.max(1, cleanNum(document.getElementById('stTargetInput').value) || 4);
   const fee = cleanNum(document.getElementById('stFeeInput').value);
   const endDate = (document.getElementById('stEndDateInput').value || '').trim();
+  const schedFrom = (document.getElementById('stSchedFromInput').value || todayIso).trim();
 
   if (id) {
     const st = state.students.find(s => s.id === id);
@@ -2557,7 +2585,23 @@ document.getElementById('btnSaveStudent').onclick = () => {
       st.fee = fee;
       st.payType = payType;
       st.endDate = endDate;
-      st.schedules = schedules;
+
+      if (!Array.isArray(st.scheduleHistory) || !st.scheduleHistory.length) {
+        st.scheduleHistory = [{ from: '2000-01-01', schedules: st.schedules || [] }];
+      }
+      const prevLatest = st.scheduleHistory[st.scheduleHistory.length - 1].schedules || [];
+      const isChanged = JSON.stringify(prevLatest) !== JSON.stringify(schedules);
+
+      if (isChanged) {
+        const sameIdx = st.scheduleHistory.findIndex(h => h.from === schedFrom);
+        if (sameIdx >= 0) {
+          st.scheduleHistory[sameIdx].schedules = schedules;
+        } else {
+          st.scheduleHistory.push({ from: schedFrom, schedules });
+        }
+        st.scheduleHistory.sort((a, b) => a.from.localeCompare(b.from));
+      }
+      st.schedules = getSchedulesForDate(st, todayIso);
     }
   } else {
     state.students.push({
@@ -2573,6 +2617,7 @@ document.getElementById('btnSaveStudent').onclick = () => {
       status: 'active',
       sentCheck: false,
       schedules,
+      scheduleHistory: [{ from: '2000-01-01', schedules }],
       currentLogs: [],
       archivedLogs: []
     });
@@ -2622,46 +2667,59 @@ function renderTimetableTab() {
     const allLogs = isFixed ? [] : [...(st.currentLogs || []), ...(st.archivedLogs || [])];
     const endDate = (st.endDate || '').trim();
 
-    (st.schedules || []).forEach(sc => {
-      const dayIdx = Number(sc.dow);
-      if (dayIdx < 0 || dayIdx > 6) return;
-
-      let canceledType = null;
-      let isPast = false;
-
-      if (!isFixed) {
+    if (isFixed) {
+      const curScheds = getSchedulesForDate(st, todayIso);
+      curScheds.forEach(sc => {
+        const dayIdx = Number(sc.dow);
+        if (dayIdx < 0 || dayIdx > 6) return;
+        dayEvents[dayIdx].push({
+          studentId: st.id,
+          studentName: st.name,
+          colorIdx,
+          start: sc.start,
+          end: sc.end,
+          isPlannedMakeup: false,
+          canceledType: null,
+          isPast: false
+        });
+      });
+    } else {
+      for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
         const iso = toIsoDate(weekDates[dayIdx]);
-        // 수업 종료 예정일이 지정되어 있고 그 날짜를 넘어섰다면 시간표 블록에서 제외!
-        if (endDate && iso > endDate) return;
+        if (endDate && iso > endDate) continue;
 
-        const cancelLog = allLogs.find(l => l.date === iso && (l.type === '휴강' || l.type === '결강'));
-        if (cancelLog) {
-          canceledType = cancelLog.type;
-        } else {
-          const doneToday = (iso === todayIso) && allLogs.some(l => l.date === iso && (l.type === '정규' || l.type === '보강'));
-          if (iso < todayIso || doneToday) isPast = true;
-        }
+        const schedsOnDate = getSchedulesForDate(st, iso);
+        schedsOnDate.filter(sc => Number(sc.dow) === dayIdx).forEach(sc => {
+          let canceledType = null;
+          let isPast = false;
+          const cancelLog = allLogs.find(l => l.date === iso && (l.type === '휴강' || l.type === '결강'));
+          if (cancelLog) {
+            canceledType = cancelLog.type;
+          } else {
+            const doneToday = (iso === todayIso) && allLogs.some(l => l.date === iso && (l.type === '정규' || l.type === '보강'));
+            if (iso < todayIso || doneToday) isPast = true;
+          }
+
+          dayEvents[dayIdx].push({
+            studentId: st.id,
+            studentName: st.name,
+            colorIdx,
+            start: sc.start,
+            end: sc.end,
+            isPlannedMakeup: false,
+            canceledType,
+            isPast
+          });
+        });
       }
 
-      dayEvents[dayIdx].push({
-        studentId: st.id,
-        studentName: st.name,
-        colorIdx,
-        start: sc.start,
-        end: sc.end,
-        isPlannedMakeup: false,
-        canceledType,
-        isPast
-      });
-    });
-
-    if (!isFixed) {
       allLogs.filter(l => l.type === '보강' || l.type === '보강예정').forEach(l => {
         if (endDate && l.date > endDate) return;
         const idx = weekDates.findIndex(wd => toIsoDate(wd) === l.date);
         if (idx >= 0) {
-          const mStart = l.start || st.schedules?.[0]?.start || '14:00';
-          const mEnd = l.end || st.schedules?.[0]?.end || '16:00';
+          const schedsOnDate = getSchedulesForDate(st, l.date);
+          const mStart = l.start || schedsOnDate[0]?.start || '14:00';
+          const mEnd = l.end || schedsOnDate[0]?.end || '16:00';
           const isPast = (l.date < todayIso) || (l.type === '보강' && l.date <= todayIso);
           dayEvents[idx].push({
             studentId: st.id,
@@ -2819,7 +2877,8 @@ function computeExpectedIncomes() {
       if (endDate && iso > endDate) break;
 
       const ourDow = (cursor.getDay() + 6) % 7;
-      const isRegularClass = dows.includes(ourDow) && !skipDates.has(iso);
+      const dowsOnDate = getSchedulesForDate(st, iso).map(sc => Number(sc.dow));
+      const isRegularClass = dowsOnDate.includes(ourDow) && !skipDates.has(iso);
       const isPlannedMakeup = plannedMakeupDates.has(iso);
 
       if (isRegularClass) upcomingClassDates.push(iso);
