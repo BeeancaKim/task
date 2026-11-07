@@ -1309,6 +1309,50 @@ main {
   </div>
 </div>
 
+  <!-- ================= 모달 S: 수업 시간 추가 / 변동 미니 팝업 ================= -->
+<div class="modal-backdrop" id="schedChangeModal" style="z-index: 85;">
+  <div class="modal-box mini">
+    <div class="section-top" style="margin-bottom:10px;">
+      <h3 class="section-title">수업 시간 추가 · 변동</h3>
+      <button type="button" class="icon-btn" onclick="closeModal('schedChangeModal')">✕</button>
+    </div>
+
+    <div class="form-row">
+      <label>방식 선택</label>
+      <div class="seg" id="schedActionSeg" style="width:100%; display:grid; grid-template-columns:1fr 1fr;">
+        <button type="button" data-val="add" class="on">수업 시간 추가</button>
+        <button type="button" data-val="replace">수업 시간 변동</button>
+      </div>
+      <div id="schedActionDesc" style="font-size:11.5px; color:var(--mute); margin-top:5px;">
+        기존 수업은 유지하고 시작일부터 수업 요일·시간을 하나 더 추가합니다.
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>시작일 (적용 기점일)</label>
+      <input type="date" id="scPopupFromDate">
+    </div>
+
+    <div class="form-row">
+      <label>요일 및 시간 (24시간제)</label>
+      <div style="display:grid; grid-template-columns: 76px 1fr auto 1fr; gap:6px; align-items:center;">
+        <select id="scPopupDow">
+          <option value="0">월</option><option value="1">화</option><option value="2">수</option>
+          <option value="3">목</option><option value="4">금</option><option value="5">토</option><option value="6">일</option>
+        </select>
+        <input type="text" class="time-24" id="scPopupStart" value="16:00" maxlength="5" onblur="normalize24TimeInput(this)">
+        <span class="tilde-sep">~</span>
+        <input type="text" class="time-24" id="scPopupEnd" value="18:00" maxlength="5" onblur="normalize24TimeInput(this)">
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:14px;">
+      <button type="button" class="btn-ghost" onclick="closeModal('schedChangeModal')">취소</button>
+      <button type="button" class="btn-primary" id="btnConfirmSchedPopup">반영</button>
+    </div>
+  </div>
+</div>
+
 <!-- ================= 모달 1: 학생 등록 / 수정 ================= -->
 <div class="modal-backdrop" id="studentModal">
   <div class="modal-box">
@@ -1352,15 +1396,9 @@ main {
       </div>
     </div>
     <div class="form-row">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
-        <label style="margin:0;">수업 요일·시간 (24시간제)</label>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span id="schedEffDateWrap" style="display:none; align-items:center; gap:4px; font-size:11.5px; color:var(--mute);">
-            적용일:
-            <input type="date" id="stSchedFromInput" style="width:128px; height:30px; font-size:12px; padding:0 6px;">
-          </span>
-          <button type="button" class="btn-ghost" id="btnAddSchedRow" style="height:30px; padding:0 10px; font-size:12px;">+ 추가</button>
-        </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <label style="margin:0;">수업 요일·시간 (24시간제, 예: 19:00)</label>
+        <button type="button" class="btn-ghost" id="btnAddSchedRow" style="height:30px; padding:0 10px; font-size:12px;">+ 추가 / 변동</button>
       </div>
       <div id="schedRowsContainer"></div>
     </div>
@@ -2471,6 +2509,21 @@ document.getElementById('btnToggleEnded').onclick = () => {
   renderMainTab();
 };
 
+let tempScheduleHistory = [];
+let schedPopupMode = 'add';
+
+function getCurrentDOMSchedules() {
+  const arr = [];
+  document.querySelectorAll('#schedRowsContainer .sched-item').forEach(row => {
+    arr.push({
+      dow: Number(row.querySelector('.sc-dow').value),
+      start: normalize24Time(row.querySelector('.sc-start').value, '16:00'),
+      end: normalize24Time(row.querySelector('.sc-end').value, '18:00')
+    });
+  });
+  return arr;
+}
+
 function addSchedRowUI(dow = 0, start = '16:00', end = '18:00') {
   const wrap = document.getElementById('schedRowsContainer');
   const div = document.createElement('div');
@@ -2487,7 +2540,64 @@ function addSchedRowUI(dow = 0, start = '16:00', end = '18:00') {
   wrap.appendChild(div);
 }
 
-document.getElementById('btnAddSchedRow').onclick = () => addSchedRowUI(0, '17:00', '19:00');
+document.getElementById('btnAddSchedRow').onclick = () => {
+  schedPopupMode = 'add';
+  document.querySelectorAll('#schedActionSeg button').forEach(b => {
+    b.classList.toggle('on', b.dataset.val === 'add');
+  });
+  document.getElementById('schedActionDesc').textContent =
+    '기존 수업은 유지하고 시작일부터 수업 요일·시간을 하나 더 추가합니다.';
+  document.getElementById('scPopupFromDate').value = todayIso;
+  document.getElementById('scPopupDow').value = todayDow;
+  document.getElementById('scPopupStart').value = '16:00';
+  document.getElementById('scPopupEnd').value = '18:00';
+  document.getElementById('schedChangeModal').classList.add('open');
+};
+
+document.querySelectorAll('#schedActionSeg button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('#schedActionSeg button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    schedPopupMode = btn.dataset.val;
+    document.getElementById('schedActionDesc').textContent = (schedPopupMode === 'add')
+      ? '기존 수업은 유지하고 시작일부터 수업 요일·시간을 하나 더 추가합니다.'
+      : '시작일 이전 시간표는 과거 기록으로 남기고, 시작일부터 새 수업 시간으로 변경합니다.';
+  };
+});
+
+document.getElementById('btnConfirmSchedPopup').onclick = () => {
+  const fromDate = (document.getElementById('scPopupFromDate').value || todayIso).trim();
+  const dow = Number(document.getElementById('scPopupDow').value);
+  const start = normalize24Time(document.getElementById('scPopupStart').value, '16:00');
+  const end = normalize24Time(document.getElementById('scPopupEnd').value, '18:00');
+  const newItem = { dow, start, end };
+
+  const currentDomScheds = getCurrentDOMSchedules();
+  if (!tempScheduleHistory.length) {
+    tempScheduleHistory = [{ from: '2000-01-01', schedules: currentDomScheds }];
+  } else {
+    tempScheduleHistory[tempScheduleHistory.length - 1].schedules = currentDomScheds;
+  }
+
+  const nextScheds = (schedPopupMode === 'add')
+    ? [...currentDomScheds, newItem]
+    : [newItem];
+
+  const sameIdx = tempScheduleHistory.findIndex(h => h.from === fromDate);
+  if (sameIdx >= 0) {
+    tempScheduleHistory[sameIdx].schedules = nextScheds;
+  } else {
+    tempScheduleHistory.push({ from: fromDate, schedules: nextScheds });
+  }
+  tempScheduleHistory.sort((a, b) => a.from.localeCompare(b.from));
+
+  const wrap = document.getElementById('schedRowsContainer');
+  wrap.innerHTML = '';
+  nextScheds.forEach(sc => addSchedRowUI(sc.dow, sc.start, sc.end));
+
+  closeModal('schedChangeModal');
+};
+
 document.getElementById('btnAddStudent').onclick = () => openStudentModal(null);
 
 window.openStudentModal = function(stId) {
@@ -2496,7 +2606,6 @@ window.openStudentModal = function(stId) {
   const leftAct = document.getElementById('stModalLeftActions');
   const subjWrap = document.getElementById('stSubjectWrap');
   const topGrid = document.getElementById('stTopRowGrid');
-  const effWrap = document.getElementById('schedEffDateWrap');
   wrap.innerHTML = '';
   leftAct.innerHTML = '';
 
@@ -2514,7 +2623,7 @@ window.openStudentModal = function(stId) {
     document.getElementById('stFeeInput').value = '';
     document.getElementById('stPayTypeInput').value = '선납';
     document.getElementById('stEndDateInput').value = '';
-    effWrap.style.display = 'none';
+    tempScheduleHistory = [];
     addSchedRowUI(todayDow, '16:00', '18:00');
   } else {
     const st = state.students.find(s => s.id === stId);
@@ -2528,12 +2637,12 @@ window.openStudentModal = function(stId) {
     document.getElementById('stFeeInput').value = st.fee || 0;
     document.getElementById('stPayTypeInput').value = st.payType || '선납';
     document.getElementById('stEndDateInput').value = st.endDate || '';
-    effWrap.style.display = 'inline-flex';
-    document.getElementById('stSchedFromInput').value = todayIso;
 
-    const latestScheds = (Array.isArray(st.scheduleHistory) && st.scheduleHistory.length)
-      ? st.scheduleHistory[st.scheduleHistory.length - 1].schedules
-      : (st.schedules || []);
+    tempScheduleHistory = (Array.isArray(st.scheduleHistory) && st.scheduleHistory.length)
+      ? JSON.parse(JSON.stringify(st.scheduleHistory))
+      : [{ from: '2000-01-01', schedules: JSON.parse(JSON.stringify(st.schedules || [])) }];
+
+    const latestScheds = tempScheduleHistory[tempScheduleHistory.length - 1].schedules || [];
     latestScheds.forEach(sc => addSchedRowUI(sc.dow, sc.start, sc.end));
 
     leftAct.innerHTML = `
@@ -2560,20 +2669,11 @@ document.getElementById('btnSaveStudent').onclick = () => {
   if (!name) return;
 
   const subject = document.getElementById('stSubjectInput').value.trim();
-  const schedules = [];
-  document.querySelectorAll('#schedRowsContainer .sched-item').forEach(row => {
-    schedules.push({
-      dow: Number(row.querySelector('.sc-dow').value),
-      start: normalize24Time(row.querySelector('.sc-start').value, '16:00'),
-      end: normalize24Time(row.querySelector('.sc-end').value, '18:00')
-    });
-  });
-
+  const domSchedules = getCurrentDOMSchedules();
   const payType = document.getElementById('stPayTypeInput').value;
   const targetCount = Math.max(1, cleanNum(document.getElementById('stTargetInput').value) || 4);
   const fee = cleanNum(document.getElementById('stFeeInput').value);
   const endDate = (document.getElementById('stEndDateInput').value || '').trim();
-  const schedFrom = (document.getElementById('stSchedFromInput').value || todayIso).trim();
 
   if (id) {
     const st = state.students.find(s => s.id === id);
@@ -2586,25 +2686,21 @@ document.getElementById('btnSaveStudent').onclick = () => {
       st.payType = payType;
       st.endDate = endDate;
 
-      if (!Array.isArray(st.scheduleHistory) || !st.scheduleHistory.length) {
-        st.scheduleHistory = [{ from: '2000-01-01', schedules: st.schedules || [] }];
+      if (!tempScheduleHistory.length) {
+        tempScheduleHistory = [{ from: '2000-01-01', schedules: domSchedules }];
+      } else {
+        tempScheduleHistory[tempScheduleHistory.length - 1].schedules = domSchedules;
       }
-      const prevLatest = st.scheduleHistory[st.scheduleHistory.length - 1].schedules || [];
-      const isChanged = JSON.stringify(prevLatest) !== JSON.stringify(schedules);
-
-      if (isChanged) {
-        const sameIdx = st.scheduleHistory.findIndex(h => h.from === schedFrom);
-        if (sameIdx >= 0) {
-          st.scheduleHistory[sameIdx].schedules = schedules;
-        } else {
-          st.scheduleHistory.push({ from: schedFrom, schedules });
-        }
-        st.scheduleHistory.sort((a, b) => a.from.localeCompare(b.from));
-      }
+      st.scheduleHistory = tempScheduleHistory;
       st.schedules = getSchedulesForDate(st, todayIso);
     }
   } else {
-    state.students.push({
+    const initHistory = tempScheduleHistory.length
+      ? tempScheduleHistory
+      : [{ from: '2000-01-01', schedules: domSchedules }];
+    initHistory[initHistory.length - 1].schedules = domSchedules;
+
+    const newSt = {
       id: 'st_' + Date.now(),
       name,
       subject,
@@ -2616,11 +2712,13 @@ document.getElementById('btnSaveStudent').onclick = () => {
       prepaidSettleDates: null,
       status: 'active',
       sentCheck: false,
-      schedules,
-      scheduleHistory: [{ from: '2000-01-01', schedules }],
+      schedules: domSchedules,
+      scheduleHistory: initHistory,
       currentLogs: [],
       archivedLogs: []
-    });
+    };
+    newSt.schedules = getSchedulesForDate(newSt, todayIso);
+    state.students.push(newSt);
   }
   saveState();
   closeModal('studentModal');
