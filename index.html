@@ -1893,8 +1893,16 @@ function processPaymentForStudent(st, dateIso, amount, customAddedCount = null) 
     const toArchive = st.currentLogs.filter(l => finishedIds.has(l.id));
     st.archivedLogs.push(...toArchive);
     st.currentLogs = st.currentLogs.filter(l => !finishedIds.has(l.id));
-    st.sentCheck = false;
-    st.prepaidSettleDates = null;
+
+    // 이미 결산 발송 체크(sentCheck)를 해둔 상태면 명단에서 바로 비우고,
+    // 아직 체크하지 않은 상태면 결산 명단에 남도록 완료 날짜들을 보존!
+    if (st.sentCheck) {
+      st.prepaidSettleDates = null;
+      st.sentCheck = false;
+    } else {
+      st.prepaidSettleDates = finishedBatch.map(l => l.date);
+      st.sentCheck = false;
+    }
   }
   syncStudentRollover(st);
 }
@@ -2093,12 +2101,21 @@ window.quickAddPayment = function(stId) {
   renderAll();
 };
   
+// 선납완료 상태에서 결산 체크까지 마친 학생이 새 수업을 기록할 때 결산 명단에서 자동 정리
+function clearSettledPrepaidIfDone(st) {
+  if (st.sentCheck && Array.isArray(st.prepaidSettleDates) && st.prepaidSettleDates.length > 0) {
+    st.prepaidSettleDates = null;
+    st.sentCheck = false;
+  }
+}
+
 window.quickAddRegularLog = function(stId, type, preferDow = null) {
   const st = state.students.find(s => s.id === stId);
   if (!st) return;
 
   const plannedIdx = (st.currentLogs || []).findIndex(l => l.date === todayIso && l.type === '보강예정');
   if (plannedIdx >= 0 && type === '정규') {
+    clearSettledPrepaidIfDone(st);
     st.currentLogs[plannedIdx].type = '보강';
     syncStudentRollover(st);
     saveState();
@@ -2149,6 +2166,7 @@ window.quickAddRegularLog = function(stId, type, preferDow = null) {
   if (activeSc && activeSc.isMakeupSlot && activeSc.targetDate) {
     const pIdx = (st.currentLogs || []).findIndex(l => l.date === activeSc.targetDate && l.type === '보강예정');
     if (pIdx >= 0 && type === '정규') {
+      clearSettledPrepaidIfDone(st);
       st.currentLogs[pIdx].type = '보강';
       syncStudentRollover(st);
       saveState();
@@ -2157,6 +2175,7 @@ window.quickAddRegularLog = function(stId, type, preferDow = null) {
     }
   }
 
+  clearSettledPrepaidIfDone(st);
   const targetDate = getSmartRegularDate(st, preferDow);
   st.currentLogs.push({
     id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -2449,6 +2468,9 @@ document.getElementById('btnStCalNext').onclick = () => {
 function addLogFromStudentCal(type, start = null, end = null) {
   const st = state.students.find(s => s.id === currentCalStudentId);
   if (!st) return;
+  if (type === '정규' || type === '보강' || type === '결강') {
+    clearSettledPrepaidIfDone(st);
+  }
   const newLog = {
     id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
     date: stCalSelectedDate,
@@ -3174,11 +3196,6 @@ document.getElementById('btnAddExpense').onclick = () => {
 };
 
 window.deleteIncome = function(id) {
-  state.incomes = state.incomes.filter(x => x.id !== id);
-  saveState();
-  renderAll();
-  if (currentCalStudentId) renderStudentCalendarModal();
-};
 window.deleteExpense = function(id) {
   state.expenses = state.expenses.filter(x => x.id !== id);
   saveState();
